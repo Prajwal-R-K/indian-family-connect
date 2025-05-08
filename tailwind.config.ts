@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,14 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// Custom theme colors for Indian Social Network
+				isn: {
+					'primary': '#E64A19',    // Deep Orange
+					'secondary': '#2962FF',  // Blue
+					'accent': '#FFD700',     // Gold
+					'light': '#FFF3E0',      // Light Orange
+					'dark': '#3E2723'        // Deep Brown
 				}
 			},
 			borderRadius: {
@@ -89,6 +98,12 @@ export default {
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out'
+			},
+			fontFamily: {
+				sans: ['Inter', 'sans-serif']
+			},
+			backgroundImage: {
+				'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
 			}
 		}
 	},
