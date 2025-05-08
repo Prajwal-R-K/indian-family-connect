@@ -63,7 +63,8 @@ Warm regards,
 Indian Social Network Team
   `;
   
-  return sendEmail({
+  // Make sure we're actually sending the email by returning the result
+  return await sendEmail({
     to: email,
     subject,
     body

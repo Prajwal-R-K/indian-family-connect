@@ -50,12 +50,7 @@ const InviteMembersForm: React.FC<InviteMembersFormProps> = ({
       return;
     }
     
-    // Check if email already exists in the list
-    if (members.some(member => member.email === values.email)) {
-      setFormErrors({ email: "This email has already been added" });
-      return;
-    }
-    
+    // Email validation is now handled in the parent component to prevent duplicates
     setFormErrors({});
     onAddMember(values);
     form.reset();

@@ -1,3 +1,4 @@
+
 // Real Neo4j connection using neo4j-driver
 import neo4j from 'neo4j-driver';
 import { User, FamilyTree, Relationship, InviteFormValues } from '@/types';
@@ -167,6 +168,23 @@ export const getFamilyTree = async (familyTreeId: string): Promise<FamilyTree | 
 export const createRelationship = async (relationshipData: Relationship): Promise<Relationship> => {
   const { from, to, type, fromUserId } = relationshipData;
   
+  // Check if relationship already exists to prevent duplicate relationships
+  const checkCypher = `
+    MATCH (fromUser:User {email: $from})-[r:${type.toUpperCase()}]->(toUser:User {email: $to})
+    RETURN count(r) as count
+  `;
+  
+  const checkResult = await runQuery(checkCypher, { from, to });
+  if (checkResult[0].count > 0) {
+    console.log(`Relationship from ${from} to ${to} of type ${type} already exists. Skipping.`);
+    return {
+      from,
+      to,
+      type: type.toLowerCase(),
+      fromUserId
+    };
+  }
+  
   const cypher = `
     MATCH (fromUser:User {email: $from})
     MATCH (toUser:User {email: $to})
@@ -221,7 +239,7 @@ export const createInvitedUsers = async (
       const currentDateTime = getCurrentDateTime();
       
       // Create invited user
-      await createUser({
+      const newUser = await createUser({
         userId,
         name: `Guest (${member.relationship})`,
         email: member.email,
@@ -241,14 +259,20 @@ export const createInvitedUsers = async (
         fromUserId: inviter.userId
       });
       
-      // Send invitation email
-      await sendInvitationEmail(
+      // Send invitation email - ensure this happens correctly
+      const emailSent = await sendInvitationEmail(
         member.email,
         inviter.familyTreeId,
         tempPassword,
         inviter.name,
         member.relationship
       );
+      
+      if (!emailSent) {
+        console.error(`Failed to send email to ${member.email}`);
+      } else {
+        console.log(`Successfully sent invitation email to ${member.email}`);
+      }
     }
     
     return true;

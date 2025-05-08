@@ -29,6 +29,7 @@ import {
 } from "@/lib/neo4j";
 import { generateId, getCurrentDateTime, isValidPassword } from "@/lib/utils";
 import { User, InviteFormValues } from "@/types";
+import { Badge } from "@/components/ui/badge";
 
 // Schemas for form validation
 const loginSchema = z.object({
@@ -216,11 +217,18 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       if (familyMembers.length > 0) {
         // Process family member invitations
         const result = await createInvitedUsers(newUser, familyMembers);
-        if (!result) {
+        
+        if (result) {
+          toast({
+            title: "Invitations sent",
+            description: `${familyMembers.length} family members have been invited to join your tree.`,
+            variant: "default",
+          });
+        } else {
           toast({
             title: "Warning",
             description: "Some invitations might not have been sent successfully",
-            variant: "default",
+            variant: "destructive",
           });
         }
       }
@@ -298,6 +306,17 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
   };
 
   const handleAddFamilyMember = (member: InviteFormValues) => {
+    // Check if email already exists in the list
+    const emailExists = familyMembers.some(existing => existing.email === member.email);
+    if (emailExists) {
+      toast({
+        title: "Member already added",
+        description: `${member.email} is already in your invite list.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setFamilyMembers([...familyMembers, member]);
     toast({
       title: "Family member added",
