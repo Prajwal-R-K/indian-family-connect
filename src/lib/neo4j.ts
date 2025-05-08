@@ -24,10 +24,10 @@ const runQuery = async (cypher: string, params = {}) => {
     const result = await session.run(cypher, params);
     return result.records.map(record => {
       const obj: Record<string, any> = {};
-      for (let i = 0; i < record.keys.length; i++) {
-        const key = record.keys[i];
+      // Use forEach with proper type handling to avoid symbol indexing
+      record.keys.forEach((key: string) => {
         obj[key] = record.get(key);
-      }
+      });
       return obj;
     });
   } catch (error) {
