@@ -19,6 +19,7 @@ import { X } from "lucide-react";
 
 interface InviteMembersFormProps {
   onAddMember: (member: InviteFormValues) => void;
+  onRemoveMember: (email: string) => void;
   members: InviteFormValues[];
   onComplete: () => void;
   onBack: () => void;
@@ -26,6 +27,7 @@ interface InviteMembersFormProps {
 
 const InviteMembersForm: React.FC<InviteMembersFormProps> = ({ 
   onAddMember, 
+  onRemoveMember,
   members, 
   onComplete, 
   onBack 
@@ -57,13 +59,6 @@ const InviteMembersForm: React.FC<InviteMembersFormProps> = ({
     setFormErrors({});
     onAddMember(values);
     form.reset();
-  };
-  
-  const handleRemoveMember = (email: string) => {
-    const updatedMembers = members.filter(member => member.email !== email);
-    // This would actually need to update the parent component's state
-    // For now we'll just log it
-    console.log("Removed member:", email, "Updated list:", updatedMembers);
   };
   
   return (
@@ -135,8 +130,9 @@ const InviteMembersForm: React.FC<InviteMembersFormProps> = ({
               <Badge key={index} variant="secondary" className="flex items-center gap-1 px-3 py-2">
                 {member.email} ({member.relationship})
                 <button 
-                  onClick={() => handleRemoveMember(member.email)}
+                  onClick={() => onRemoveMember(member.email)}
                   className="text-gray-500 hover:text-red-500 focus:outline-none"
+                  type="button"
                 >
                   <X className="h-3 w-3" />
                 </button>

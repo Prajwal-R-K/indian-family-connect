@@ -1,23 +1,26 @@
 
-import React, { useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import AuthForm from "@/components/AuthForm";
 import { toast } from "@/hooks/use-toast";
+import { User } from "@/types";
 
 const AuthPage = () => {
   const navigate = useNavigate();
   
-  const handleAuthSuccess = (userId: string) => {
+  const handleAuthSuccess = (user: User) => {
+    // Store user ID in localStorage for session management
+    localStorage.setItem('userId', user.userId);
+    
     // Show a success message
     toast({
       title: "Authentication Successful",
-      description: "Welcome to Indian Social Network!",
+      description: `Welcome to Indian Social Network, ${user.name}!`,
     });
     
-    // In a real application, you would store the user session
-    // For now, we'll just redirect to the dashboard
-    navigate("/dashboard");
+    // Redirect to dashboard with user data
+    navigate("/dashboard", { state: { user } });
   };
   
   return (

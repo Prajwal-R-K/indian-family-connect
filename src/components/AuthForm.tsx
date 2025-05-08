@@ -17,8 +17,18 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import InviteMembersForm from "./InviteMembersForm";
-import { checkEmailExists, createFamilyTree, createUser, getUserByEmailOrId, hashPassword, updateUser, verifyPassword } from "@/lib/neo4j";
+import { 
+  checkEmailExists, 
+  createFamilyTree, 
+  createUser, 
+  getUserByEmailOrId, 
+  hashPassword, 
+  updateUser, 
+  verifyPassword,
+  createInvitedUsers
+} from "@/lib/neo4j";
 import { generateId, getCurrentDateTime, isValidPassword } from "@/lib/utils";
+import { User, InviteFormValues } from "@/types";
 
 // Schemas for form validation
 const loginSchema = z.object({
@@ -56,7 +66,7 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 type ActivateFormValues = z.infer<typeof activateSchema>;
 
 interface AuthFormProps {
-  onSuccess: (userId: string) => void;
+  onSuccess: (user: User) => void;
   defaultMode?: FormMode;
 }
 
@@ -64,7 +74,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
   const [mode, setMode] = useState<FormMode>(defaultMode);
   const [isLoading, setIsLoading] = useState(false);
   const [showInviteForm, setShowInviteForm] = useState(false);
-  const [familyMembers, setFamilyMembers] = useState<Array<{email: string; relationship: string}>>([]);
+  const [familyMembers, setFamilyMembers] = useState<InviteFormValues[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const { toast } = useToast();
 
   // Login form
@@ -116,16 +127,18 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
           description: "User not found or account is not active",
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
       }
       
       // Verify password
-      if (!verifyPassword(values.password, user.password)) {
+      if (!user.password || !verifyPassword(values.password, user.password)) {
         toast({
           title: "Login failed",
           description: "Invalid password",
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
       }
       
@@ -134,7 +147,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         description: `Welcome back, ${user.name}!`,
       });
       
-      onSuccess(user.userId);
+      onSuccess(user);
     } catch (error) {
       console.error("Login error:", error);
       toast({
@@ -142,14 +155,13 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         description: "An unexpected error occurred",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };
 
   // Handle register submit
   const onRegisterSubmit = async (values: RegisterFormValues) => {
-    if (familyMembers.length === 0) {
+    if (familyMembers.length === 0 && !showInviteForm) {
       setShowInviteForm(true);
       toast({
         title: "Add family members",
@@ -171,6 +183,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
           description: "Email already registered",
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
       }
       
@@ -178,7 +191,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       const familyTreeId = generateId("FAM");
       const currentDateTime = getCurrentDateTime();
       
-      const familyTree = await createFamilyTree({
+      await createFamilyTree({
         familyTreeId,
         createdBy: values.userId,
         createdAt: currentDateTime
@@ -186,7 +199,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       
       // Create user
       const hashedPassword = hashPassword(values.password);
-      await createUser({
+      const newUser = await createUser({
         userId: values.userId,
         name: values.name,
         email: values.email,
@@ -196,17 +209,28 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         createdBy: values.userId,
         createdAt: currentDateTime
       });
+
+      // Store the newly created user for family member processing
+      setCurrentUser(newUser);
       
-      // TODO: Process family members invitations
-      // This would be implemented in a real app to create invited users
-      // and send emails with temporary passwords
+      if (familyMembers.length > 0) {
+        // Process family member invitations
+        const result = await createInvitedUsers(newUser, familyMembers);
+        if (!result) {
+          toast({
+            title: "Warning",
+            description: "Some invitations might not have been sent successfully",
+            variant: "default",
+          });
+        }
+      }
       
       toast({
         title: "Registration successful",
         description: `Welcome to ISN, ${values.name}! Your family tree has been created.`,
       });
       
-      onSuccess(values.userId);
+      onSuccess(newUser);
     } catch (error) {
       console.error("Registration error:", error);
       toast({
@@ -214,7 +238,6 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         description: "An unexpected error occurred",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -225,7 +248,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
     
     try {
       // Get invited user
-      const user = await getUserByEmailOrId(values.email);
+      const user = await getInvitedUserByEmail(values.email, values.familyTreeId);
       
       if (!user || user.status !== 'invited' || user.familyTreeId !== values.familyTreeId) {
         toast({
@@ -233,22 +256,24 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
           description: "Invalid email or Family Tree ID",
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
       }
       
       // Verify temporary password
-      if (!verifyPassword(values.tempPassword, user.password)) {
+      if (!user.password || !verifyPassword(values.tempPassword, user.password)) {
         toast({
           title: "Activation failed",
           description: "Invalid temporary password",
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
       }
       
       // Update user
       const hashedPassword = hashPassword(values.newPassword);
-      await updateUser(user.userId, {
+      const updatedUser = await updateUser(user.userId, {
         name: values.name,
         userId: values.userId,
         password: hashedPassword,
@@ -260,7 +285,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         description: `Welcome to ISN, ${values.name}! Your account is now active.`,
       });
       
-      onSuccess(user.userId);
+      onSuccess(updatedUser);
     } catch (error) {
       console.error("Activation error:", error);
       toast({
@@ -268,17 +293,21 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         description: "An unexpected error occurred",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAddFamilyMember = (member: {email: string; relationship: string}) => {
+  const handleAddFamilyMember = (member: InviteFormValues) => {
     setFamilyMembers([...familyMembers, member]);
     toast({
       title: "Family member added",
       description: `${member.email} will be invited as your ${member.relationship}`,
     });
+  };
+
+  const handleRemoveMember = (email: string) => {
+    const updatedMembers = familyMembers.filter(member => member.email !== email);
+    setFamilyMembers(updatedMembers);
   };
 
   return (
@@ -431,7 +460,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
               </Form>
             ) : (
               <InviteMembersForm 
-                onAddMember={handleAddFamilyMember} 
+                onAddMember={handleAddFamilyMember}
+                onRemoveMember={handleRemoveMember}
                 members={familyMembers}
                 onComplete={() => {
                   if (familyMembers.length > 0) {
