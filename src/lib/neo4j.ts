@@ -1,4 +1,3 @@
-
 // Real Neo4j connection using neo4j-driver
 import neo4j from 'neo4j-driver';
 import { User, FamilyTree, Relationship, InviteFormValues } from '@/types';
@@ -108,6 +107,19 @@ export const checkEmailExists = async (email: string): Promise<boolean> => {
 };
 
 export const getInvitedUserByEmail = async (email: string, familyTreeId: string): Promise<User | null> => {
+  const cypher = `
+    MATCH (u:User {email: $email, familyTreeId: $familyTreeId, status: 'invited'})
+    RETURN u
+  `;
+  
+  const result = await runQuery(cypher, { email, familyTreeId });
+  if (result && result.length > 0) {
+    return result[0].u.properties as User;
+  }
+  return null;
+};
+
+export const getUserByEmailAndFamilyTree = async (email: string, familyTreeId: string): Promise<User | null> => {
   const cypher = `
     MATCH (u:User {email: $email, familyTreeId: $familyTreeId, status: 'invited'})
     RETURN u

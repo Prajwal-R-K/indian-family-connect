@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,7 +24,8 @@ import {
   hashPassword, 
   updateUser, 
   verifyPassword,
-  createInvitedUsers
+  createInvitedUsers,
+  getUserByEmailAndFamilyTree
 } from "@/lib/neo4j";
 import { generateId, getCurrentDateTime, isValidPassword } from "@/lib/utils";
 import { User, InviteFormValues } from "@/types";
@@ -248,7 +248,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
     
     try {
       // Get invited user
-      const user = await getInvitedUserByEmail(values.email, values.familyTreeId);
+      const user = await getUserByEmailAndFamilyTree(values.email, values.familyTreeId);
       
       if (!user || user.status !== 'invited' || user.familyTreeId !== values.familyTreeId) {
         toast({
