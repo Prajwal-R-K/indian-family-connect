@@ -41,6 +41,9 @@ export function generateTempPassword(): string {
   return password;
 }
 
+// Export for modules that need this function directly
+export const utilsGenerateTempPassword = generateTempPassword;
+
 // Function to validate invite form
 export function validateInviteForm(values: InviteFormValues): Record<string, string> {
   const errors: Record<string, string> = {};
