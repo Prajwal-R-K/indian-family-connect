@@ -24,9 +24,10 @@ const runQuery = async (cypher: string, params = {}) => {
     const result = await session.run(cypher, params);
     return result.records.map(record => {
       const obj: Record<string, any> = {};
-      record.keys.forEach(key => {
+      for (let i = 0; i < record.keys.length; i++) {
+        const key = record.keys[i];
         obj[key] = record.get(key);
-      });
+      }
       return obj;
     });
   } catch (error) {

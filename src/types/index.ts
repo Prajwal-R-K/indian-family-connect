@@ -3,6 +3,7 @@ export interface User {
   userId: string;
   name: string;
   email: string;
+  password?: string; // Added password property
   status: 'active' | 'invited';
   familyTreeId: string;
   createdBy?: string;
