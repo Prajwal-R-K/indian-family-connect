@@ -2,6 +2,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { InviteFormValues } from "@/types";
+import { sendInvitationEmail } from "./email";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -30,12 +31,19 @@ export function isValidPassword(password: string): boolean {
   return re.test(password);
 }
 
-// Mock function to send email (would be replaced with actual email service)
-export function sendInvitationEmail(email: string, familyTreeId: string, password: string, inviter: string, relationship: string): void {
-  console.log(`Email sent to ${email}:
-    You've been added to family tree ${familyTreeId} by ${inviter} as their ${relationship}.
-    Your temporary password is: ${password}
-    Please activate your account to join the tree.`);
+// Function to send email using our email service
+export function sendInvitationEmailUtil(email: string, familyTreeId: string, password: string, inviter: string, relationship: string): void {
+  sendInvitationEmail(email, familyTreeId, password, inviter, relationship)
+    .then(success => {
+      if (success) {
+        console.log(`Invitation email sent successfully to ${email}`);
+      } else {
+        console.error(`Failed to send invitation email to ${email}`);
+      }
+    })
+    .catch(error => {
+      console.error(`Error sending invitation email to ${email}:`, error);
+    });
 }
 
 // Function to validate invite form

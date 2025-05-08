@@ -3,6 +3,7 @@ import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { User } from "@/types";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Plus, Users, Search, Mail } from "lucide-react";
 
 interface DashboardProps {
@@ -10,11 +11,32 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
+  // Get first letter of first and last name for avatar
+  const getNameInitials = (name: string) => {
+    if (!name) return "U";
+    const parts = name.split(" ");
+    if (parts.length >= 2) {
+      return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`;
+    }
+    return name.charAt(0);
+  };
+  
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-isn-dark">Welcome, {user.name}!</h1>
-        <p className="text-gray-600">Family Tree ID: {user.familyTreeId}</p>
+      <div className="mb-8 flex items-center gap-4">
+        <Avatar className="h-16 w-16 border-2 border-isn-secondary">
+          {user.profilePicture ? (
+            <AvatarImage src={user.profilePicture} alt={user.name} />
+          ) : (
+            <AvatarFallback className="bg-isn-primary text-white text-xl">
+              {getNameInitials(user.name)}
+            </AvatarFallback>
+          )}
+        </Avatar>
+        <div>
+          <h1 className="text-3xl font-bold text-isn-dark">{user.name || "Welcome!"}</h1>
+          <p className="text-gray-600">Family Tree ID: {user.familyTreeId}</p>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
