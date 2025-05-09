@@ -6,3 +6,6 @@ export * from './family-tree';
 export * from './relationships';
 export * from './auth';
 export * from './invitations';
+
+// Re-export email functions needed for auth
+export { sendEmail, sendInvitationEmail, getEmailLogs, hasEmailBeenSent, getLatestEmail } from '../email';
