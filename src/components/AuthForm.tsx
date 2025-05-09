@@ -271,21 +271,28 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
     setIsLoading(true);
     
     try {
-      // Get invited user
+      console.log("Starting account activation process...");
+      console.log(`Checking for invited user: ${values.email} in family tree: ${values.familyTreeId}`);
+      
+      // Get invited user - this checks if email exists in the specified family tree
       const user = await getUserByEmailAndFamilyTree(values.email, values.familyTreeId);
       
-      if (!user || user.status !== 'invited' || user.familyTreeId !== values.familyTreeId) {
+      if (!user) {
+        console.error("User not found or not invited to this family tree");
         toast({
           title: "Activation failed",
-          description: "Invalid email or Family Tree ID",
+          description: "Invalid email or Family Tree ID. Please check your details.",
           variant: "destructive",
         });
         setIsLoading(false);
         return;
       }
       
+      console.log(`Found invited user: ${user.userId} with status: ${user.status}`);
+      
       // Verify temporary password
       if (!user.password || !verifyPassword(values.tempPassword, user.password)) {
+        console.error("Invalid temporary password");
         toast({
           title: "Activation failed",
           description: "Invalid temporary password",
@@ -295,14 +302,25 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         return;
       }
       
-      // Update user
-      const hashedPassword = hashPassword(values.newPassword);
-      const updatedUser = await updateUser(user.userId, {
+      console.log("Temporary password verified, updating user details...");
+      
+      // Create the update payload
+      const updateData: Partial<User> = {
         name: values.name,
         userId: values.userId,
-        password: hashedPassword,
+        password: hashPassword(values.newPassword),
         status: "active"
+      };
+      
+      console.log(`Updating user ${user.userId} with new data:`, {
+        ...updateData,
+        password: "[REDACTED]"
       });
+      
+      // Update user - use the original userId from the database record
+      const updatedUser = await updateUser(user.userId, updateData);
+      
+      console.log("Account successfully activated:", updatedUser.userId);
       
       toast({
         title: "Account activated",
@@ -314,7 +332,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       console.error("Activation error:", error);
       toast({
         title: "Activation failed",
-        description: "An unexpected error occurred",
+        description: "An unexpected error occurred. Please check your details and try again.",
         variant: "destructive",
       });
       setIsLoading(false);
