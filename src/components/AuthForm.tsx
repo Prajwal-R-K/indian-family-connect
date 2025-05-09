@@ -25,7 +25,8 @@ import {
   updateUser, 
   verifyPassword,
   createInvitedUsers,
-  getUserByEmailAndFamilyTree
+  getUserByEmailAndFamilyTree,
+  getLatestEmail
 } from "@/lib/neo4j";
 import { generateId, getCurrentDateTime, isValidPassword } from "@/lib/utils";
 import { User, InviteFormValues } from "@/types";
@@ -278,24 +279,38 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       const user = await getUserByEmailAndFamilyTree(values.email, values.familyTreeId);
       
       if (!user) {
-        console.error("User not found or not invited to this family tree");
+        console.error("User not found in this family tree");
         toast({
           title: "Activation failed",
-          description: "Invalid email or Family Tree ID. Please check your details.",
+          description: "User not found in this family tree. Please check your email and Family Tree ID.",
           variant: "destructive",
         });
         setIsLoading(false);
         return;
       }
       
-      console.log(`Found invited user: ${user.userId} with status: ${user.status}`);
+      console.log(`Found user: ${user.userId} with status: ${user.status}`);
+      
+      // Check if user is invited
+      if (user.status !== 'invited') {
+        console.error(`User found but status is ${user.status}, not 'invited'`);
+        toast({
+          title: "Activation failed",
+          description: user.status === 'active' ? 
+            "This account is already active. Please login instead." : 
+            "This account cannot be activated. Please contact support.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
       
       // Verify temporary password
       if (!user.password || !verifyPassword(values.tempPassword, user.password)) {
         console.error("Invalid temporary password");
         toast({
           title: "Activation failed",
-          description: "Invalid temporary password",
+          description: "Invalid temporary password. Please check your email for the correct password.",
           variant: "destructive",
         });
         setIsLoading(false);
@@ -307,10 +322,26 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       // Create the update payload
       const updateData: Partial<User> = {
         name: values.name,
-        userId: values.userId,
-        password: hashPassword(values.newPassword),
-        status: "active"
+        status: "active",
+        password: hashPassword(values.newPassword)
       };
+      
+      // Don't update userId if it will cause a conflict
+      if (values.userId !== user.userId) {
+        // Check if new userId already exists
+        const existingUser = await getUserByEmailOrId(values.userId);
+        if (existingUser) {
+          console.error("UserID already exists");
+          toast({
+            title: "Activation failed",
+            description: "This User ID is already taken. Please choose a different one.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+        updateData.userId = values.userId;
+      }
       
       console.log(`Updating user ${user.userId} with new data:`, {
         ...updateData,

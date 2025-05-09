@@ -16,7 +16,7 @@ const driver = neo4j.driver(
   {
     maxConnectionPoolSize: 50,
     connectionAcquisitionTimeout: 10000
-    // Removed connectionLivenessCheckTimeout as it's not a valid property
+    // Removed invalid connectionLivenessCheckTimeout property
   }
 );
 

@@ -107,3 +107,11 @@ export const getEmailLogs = (email?: string): Record<string, EmailOptions[]> | E
 export const hasEmailBeenSent = (email: string): boolean => {
   return !!sentEmails[email] && sentEmails[email].length > 0;
 };
+
+// Function to get the latest email sent (for testing)
+export const getLatestEmail = (email: string): EmailOptions | null => {
+  if (sentEmails[email] && sentEmails[email].length > 0) {
+    return sentEmails[email][sentEmails[email].length - 1];
+  }
+  return null;
+};

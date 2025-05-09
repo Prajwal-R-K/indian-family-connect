@@ -40,7 +40,7 @@ export const createInvitedUsers = async (
       
       const userId = generateId('U');
       const tempPassword = generateTempPassword();
-      const hashedPassword = hashPassword(tempPassword); // Now no longer hashing as per user request
+      const hashedPassword = hashPassword(tempPassword); // No longer hashing as per user request
       const currentDateTime = getCurrentDateTime();
       
       console.log(`🔑 Generated temp password for ${member.email}: ${tempPassword}`);

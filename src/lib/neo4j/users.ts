@@ -88,8 +88,9 @@ export const checkEmailExists = async (email: string): Promise<boolean> => {
 export const getUserByEmailAndFamilyTree = async (email: string, familyTreeId: string): Promise<User | null> => {
   console.log(`Looking for user with email: ${email} in family tree: ${familyTreeId}`);
   
+  // Fixed query - removed the status filter to check any user with this email in the family tree
   const cypher = `
-    MATCH (u:User {email: $email, familyTreeId: $familyTreeId, status: 'invited'})
+    MATCH (u:User {email: $email, familyTreeId: $familyTreeId})
     RETURN u
   `;
   
@@ -101,6 +102,6 @@ export const getUserByEmailAndFamilyTree = async (email: string, familyTreeId: s
     return user;
   }
   
-  console.log(`No invited user found with email: ${email} in family tree: ${familyTreeId}`);
+  console.log(`No user found with email: ${email} in family tree: ${familyTreeId}`);
   return null;
 };
