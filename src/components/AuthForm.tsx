@@ -198,6 +198,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         createdAt: currentDateTime
       });
       
+      console.log(`Family tree created with ID: ${familyTreeId}`);
+      
       // Create user
       const hashedPassword = hashPassword(values.password);
       const newUser = await createUser({
@@ -211,23 +213,37 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         createdAt: currentDateTime
       });
 
+      console.log(`User created: ${newUser.userId} (${newUser.email})`);
+      
       // Store the newly created user for family member processing
       setCurrentUser(newUser);
       
       if (familyMembers.length > 0) {
-        // Process family member invitations
-        const result = await createInvitedUsers(newUser, familyMembers);
-        
-        if (result) {
-          toast({
-            title: "Invitations sent",
-            description: `${familyMembers.length} family members have been invited to join your tree.`,
-            variant: "default",
-          });
-        } else {
+        console.log(`Processing ${familyMembers.length} family member invitations`);
+        // Process family member invitations - explicitly wait for this to complete
+        try {
+          const result = await createInvitedUsers(newUser, familyMembers);
+          
+          if (result) {
+            toast({
+              title: "Invitations sent",
+              description: `${familyMembers.length} family members have been invited to join your tree.`,
+              variant: "default",
+            });
+            console.log("All invitations processed successfully");
+          } else {
+            toast({
+              title: "Warning",
+              description: "Some invitations might not have been sent successfully",
+              variant: "destructive",
+            });
+            console.log("Some invitations might not have been sent successfully");
+          }
+        } catch (inviteError) {
+          console.error("Error processing invitations:", inviteError);
           toast({
             title: "Warning",
-            description: "Some invitations might not have been sent successfully",
+            description: "There was an issue sending some invitations",
             variant: "destructive",
           });
         }

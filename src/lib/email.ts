@@ -33,6 +33,10 @@ export const sendEmail = async (options: EmailOptions): Promise<boolean> => {
     });
     
     console.log('✅ Email sent successfully!');
+    
+    // Simulate network delay for email sending
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     return true;
   } catch (error) {
     console.error('❌ Email sending failed:', error);
@@ -47,6 +51,8 @@ export const sendInvitationEmail = async (
   inviter: string,
   relationship: string
 ): Promise<boolean> => {
+  console.log(`Preparing invitation email for ${email} from ${inviter}`);
+  
   const subject = `You've been invited to join the Indian Social Network Family Tree`;
   
   const body = `
@@ -63,12 +69,20 @@ Warm regards,
 Indian Social Network Team
   `;
   
-  // Make sure we're actually sending the email by returning the result
-  return await sendEmail({
-    to: email,
-    subject,
-    body
-  });
+  try {
+    // Make sure we're actually sending the email and awaiting the result
+    const result = await sendEmail({
+      to: email,
+      subject,
+      body
+    });
+    
+    console.log(`Invitation email to ${email} status: ${result ? 'Sent' : 'Failed'}`);
+    return result;
+  } catch (err) {
+    console.error(`Error in sendInvitationEmail for ${email}:`, err);
+    return false;
+  }
 };
 
 export const getEmailLogs = (email?: string): Record<string, EmailOptions[]> | EmailOptions[] => {

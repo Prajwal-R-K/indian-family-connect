@@ -13,11 +13,17 @@ const AuthPage = () => {
     // Store user ID in localStorage for session management
     localStorage.setItem('userId', user.userId);
     
+    // Store full user data for easier access (don't include password)
+    const { password, ...safeUserData } = user;
+    localStorage.setItem('userData', JSON.stringify(safeUserData));
+    
     // Show a success message
     toast({
       title: "Authentication Successful",
       description: `Welcome to Indian Social Network, ${user.name}!`,
     });
+    
+    console.log(`User authenticated successfully: ${user.userId} (${user.email})`);
     
     // Redirect to dashboard with user data
     navigate("/dashboard", { state: { user } });
