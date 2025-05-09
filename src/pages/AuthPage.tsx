@@ -17,6 +17,14 @@ const AuthPage = () => {
     const { password, ...safeUserData } = user;
     localStorage.setItem('userData', JSON.stringify(safeUserData));
     
+    // Log auth success details
+    console.log("AUTH SUCCESS DETAILS:");
+    console.log("- User ID:", user.userId);
+    console.log("- User email:", user.email);
+    console.log("- User name:", user.name);
+    console.log("- User status:", user.status);
+    console.log("- Family Tree ID:", user.familyTreeId);
+    
     // Show a success message
     toast({
       title: "Authentication Successful",

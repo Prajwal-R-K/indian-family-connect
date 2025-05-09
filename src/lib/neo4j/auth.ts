@@ -1,15 +1,15 @@
 
 import { utilsGenerateTempPassword } from '../utils';
 
-// Password utility functions
+// Password utility functions - No hashing as requested by the user
 export const hashPassword = (password: string): string => {
-  // In a real app, use proper hashing library like bcrypt
-  // For demo, we'll use a simple hash
-  return `hashed_${password}`;
+  // No hashing as per user's request
+  return password;
 };
 
 export const verifyPassword = (password: string, hashedPassword: string): boolean => {
-  return hashedPassword === `hashed_${password}`;
+  // Since we're not hashing, direct comparison
+  return hashedPassword === password;
 };
 
 export const generateTempPassword = (): string => {

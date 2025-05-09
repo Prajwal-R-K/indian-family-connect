@@ -5,12 +5,16 @@ import { Button } from "@/components/ui/button";
 import { User } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Plus, Users, Search, Mail } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "@/hooks/use-toast";
 
 interface DashboardProps {
   user: User;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
+  const navigate = useNavigate();
+  
   // Get first letter of first and last name for avatar
   const getNameInitials = (name: string) => {
     if (!name) return "U";
@@ -21,10 +25,46 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     return name.charAt(0);
   };
   
+  // Button handlers
+  const handleViewFamily = () => {
+    toast({
+      title: "Family Members",
+      description: "View your family members functionality coming soon!",
+    });
+  };
+  
+  const handleManageInvitations = () => {
+    toast({
+      title: "Invitations",
+      description: "Manage invitations functionality coming soon!",
+    });
+  };
+  
+  const handleSearch = () => {
+    toast({
+      title: "Search",
+      description: "Search functionality coming soon!",
+    });
+  };
+  
+  const handleInvite = () => {
+    toast({
+      title: "Invite Members",
+      description: "You can invite more family members from here soon!",
+    });
+  };
+  
+  const handleViewProfile = () => {
+    toast({
+      title: "Profile",
+      description: "Profile management coming soon!",
+    });
+  };
+  
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8 flex items-center gap-4">
-        <Avatar className="h-16 w-16 border-2 border-isn-secondary">
+        <Avatar className="h-16 w-16 border-2 border-isn-secondary cursor-pointer" onClick={handleViewProfile}>
           {user.profilePicture ? (
             <AvatarImage src={user.profilePicture} alt={user.name} />
           ) : (
@@ -48,7 +88,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           <CardContent>
             <div className="flex justify-between items-center">
               <span className="text-2xl font-bold">0</span>
-              <Button size="sm" variant="outline" className="flex items-center gap-1">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="flex items-center gap-1"
+                onClick={handleViewFamily}
+              >
                 <Users className="h-4 w-4" />
                 <span>View</span>
               </Button>
@@ -64,7 +109,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           <CardContent>
             <div className="flex justify-between items-center">
               <span className="text-2xl font-bold">0</span>
-              <Button size="sm" variant="outline" className="flex items-center gap-1">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="flex items-center gap-1"
+                onClick={handleManageInvitations}
+              >
                 <Mail className="h-4 w-4" />
                 <span>Manage</span>
               </Button>
@@ -78,7 +128,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             <CardDescription>Search for other trees</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button size="sm" variant="outline" className="w-full flex items-center gap-1">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="w-full flex items-center gap-1"
+              onClick={handleSearch}
+            >
               <Search className="h-4 w-4" />
               <span>Search</span>
             </Button>
@@ -91,7 +146,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             <CardDescription>Expand your family tree</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button size="sm" className="w-full bg-isn-primary hover:bg-isn-primary/90 flex items-center gap-1">
+            <Button 
+              size="sm" 
+              className="w-full bg-isn-primary hover:bg-isn-primary/90 flex items-center gap-1"
+              onClick={handleInvite}
+            >
               <Plus className="h-4 w-4" />
               <span>Invite</span>
             </Button>
@@ -114,7 +173,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               </div>
               <h3 className="text-lg font-medium text-gray-700 mb-2">Family Tree Visualization</h3>
               <p className="text-gray-500 mb-4">Your family tree will appear here as you add more members.</p>
-              <Button size="sm" className="bg-isn-primary hover:bg-isn-primary/90">
+              <Button 
+                size="sm" 
+                className="bg-isn-primary hover:bg-isn-primary/90"
+                onClick={handleInvite}
+              >
                 Start Adding Members
               </Button>
             </div>

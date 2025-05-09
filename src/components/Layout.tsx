@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import Logo from "./Logo";
 import { Button } from "@/components/ui/button";
 import { User, LogOut } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -12,6 +13,13 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, isLoggedIn = false, onLogout }) => {
+  const handleProfileClick = () => {
+    toast({
+      title: "Profile",
+      description: "Profile management coming soon!",
+    });
+  };
+  
   return (
     <div className="min-h-screen flex flex-col bg-isn-light pattern-bg">
       <header className="bg-white shadow-md py-4">
@@ -23,12 +31,15 @@ const Layout: React.FC<LayoutProps> = ({ children, isLoggedIn = false, onLogout 
           <nav>
             {isLoggedIn ? (
               <div className="flex items-center space-x-4">
-                <Link to="/profile">
-                  <Button variant="outline" size="sm" className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    <span>Profile</span>
-                  </Button>
-                </Link>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex items-center gap-2"
+                  onClick={handleProfileClick}
+                >
+                  <User className="h-4 w-4" />
+                  <span>Profile</span>
+                </Button>
                 <Button 
                   variant="ghost" 
                   size="sm" 

@@ -3,7 +3,7 @@ import { getCurrentDateTime } from './utils';
 
 // Email service configuration
 // In a production app, you would use a real email service like SendGrid, Mailgun, etc.
-// For now, we'll simulate email sending with logging and tracking
+// For now, we'll simulate email sending with more detailed logging and tracking
 
 interface EmailOptions {
   to: string;
@@ -11,15 +11,16 @@ interface EmailOptions {
   body: string;
 }
 
-// Track sent emails for demo purposes
+// Track sent emails for demo purposes with more detailed tracking
 const sentEmails: Record<string, EmailOptions[]> = {};
 
 export const sendEmail = async (options: EmailOptions): Promise<boolean> => {
   try {
-    console.log('📧 Sending Email:');
+    console.log('📧 SENDING EMAIL START =====================');
     console.log(`To: ${options.to}`);
     console.log(`Subject: ${options.subject}`);
     console.log(`Body: ${options.body}`);
+    console.log('-------------------------------------------');
     
     // In a real app, you would use an email service API here
     // For demo, we'll just track the email in our mock storage
@@ -27,19 +28,27 @@ export const sendEmail = async (options: EmailOptions): Promise<boolean> => {
       sentEmails[options.to] = [];
     }
     
-    sentEmails[options.to].push({
+    const emailWithTimestamp = {
       ...options,
       body: options.body + `\n\nSent at: ${getCurrentDateTime()}`
-    });
+    };
     
-    console.log('✅ Email sent successfully!');
+    sentEmails[options.to].push(emailWithTimestamp);
     
-    // Simulate network delay for email sending
-    await new Promise(resolve => setTimeout(resolve, 100));
+    console.log('✅ EMAIL SENT SUCCESSFULLY!');
+    console.log(`Email record created for ${options.to}`);
+    console.log('📧 SENDING EMAIL END =======================');
     
+    // For debugging: Show all sent emails
+    console.log('Current email log:', Object.keys(sentEmails).map(email => ({
+      email,
+      count: sentEmails[email].length
+    })));
+    
+    // Simulate email transmission success
     return true;
   } catch (error) {
-    console.error('❌ Email sending failed:', error);
+    console.error('❌ EMAIL SENDING FAILED:', error);
     return false;
   }
 };
@@ -51,7 +60,7 @@ export const sendInvitationEmail = async (
   inviter: string,
   relationship: string
 ): Promise<boolean> => {
-  console.log(`Preparing invitation email for ${email} from ${inviter}`);
+  console.log(`🔔 Preparing invitation email for ${email} from ${inviter}`);
   
   const subject = `You've been invited to join the Indian Social Network Family Tree`;
   
@@ -64,12 +73,14 @@ You've been added to a family tree by ${inviter} as their ${relationship}.
 🔹 Temporary Password: ${password}
 
 Please activate your account by visiting our website and using these credentials.
+Go to: https://indian-social-network.com/auth and click on "Activate" tab.
 
 Warm regards,
 Indian Social Network Team
   `;
   
   try {
+    console.log(`Starting email sending process for ${email}...`);
     // Make sure we're actually sending the email and awaiting the result
     const result = await sendEmail({
       to: email,
@@ -77,7 +88,7 @@ Indian Social Network Team
       body
     });
     
-    console.log(`Invitation email to ${email} status: ${result ? 'Sent' : 'Failed'}`);
+    console.log(`Invitation email to ${email} status: ${result ? 'Sent ✅' : 'Failed ❌'}`);
     return result;
   } catch (err) {
     console.error(`Error in sendInvitationEmail for ${email}:`, err);
@@ -90,4 +101,9 @@ export const getEmailLogs = (email?: string): Record<string, EmailOptions[]> | E
     return sentEmails[email];
   }
   return sentEmails;
+};
+
+// Function to check if an email has been sent (for debugging)
+export const hasEmailBeenSent = (email: string): boolean => {
+  return !!sentEmails[email] && sentEmails[email].length > 0;
 };
