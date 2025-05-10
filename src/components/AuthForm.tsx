@@ -319,46 +319,76 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       
       console.log("Temporary password verified, updating user details...");
       
-      // Create the update payload
+      // Create the update payload with all fields except userId
       const updateData: Partial<User> = {
         name: values.name,
         status: "active",
         password: hashPassword(values.newPassword)
       };
       
-      // Don't update userId if it will cause a conflict
-      if (values.userId !== user.userId) {
+      // FIXED: First update everything except userId
+      console.log(`Updating user ${user.userId} with data:`, {
+        ...updateData,
+        password: "[REDACTED]"
+      });
+      
+      // First update basic information
+      const updatedUser = await updateUser(user.userId, updateData);
+      
+      // If user wants a different userId, update it separately
+      if (values.userId && values.userId !== user.userId) {
         // Check if new userId already exists
         const existingUser = await getUserByEmailOrId(values.userId);
         if (existingUser) {
           console.error("UserID already exists");
           toast({
-            title: "Activation failed",
-            description: "This User ID is already taken. Please choose a different one.",
-            variant: "destructive",
+            title: "Activation partial success",
+            description: "Your account is active but we couldn't change your User ID as it's already taken.",
+            variant: "warning",
           });
           setIsLoading(false);
+          onSuccess(updatedUser);
           return;
         }
-        updateData.userId = values.userId;
+        
+        console.log(`Now updating userId from ${user.userId} to ${values.userId}`);
+        
+        // Update userId separately
+        try {
+          const userWithNewId = await updateUser(updatedUser.userId, {
+            userId: values.userId
+          });
+          
+          console.log("Account successfully activated with new userId:", userWithNewId.userId);
+          
+          toast({
+            title: "Account activated",
+            description: `Welcome to ISN, ${values.name}! Your account is now active.`,
+          });
+          
+          onSuccess(userWithNewId);
+        } catch (idUpdateError) {
+          console.error("Failed to update userId:", idUpdateError);
+          // User is still activated but with original ID
+          toast({
+            title: "Account activated",
+            description: `Welcome to ISN, ${values.name}! Your account is active but we couldn't update your User ID.`,
+            variant: "default",
+          });
+          
+          onSuccess(updatedUser);
+        }
+      } else {
+        // No userId change needed
+        console.log("Account successfully activated:", updatedUser.userId);
+        
+        toast({
+          title: "Account activated",
+          description: `Welcome to ISN, ${values.name}! Your account is now active.`,
+        });
+        
+        onSuccess(updatedUser);
       }
-      
-      console.log(`Updating user ${user.userId} with new data:`, {
-        ...updateData,
-        password: "[REDACTED]"
-      });
-      
-      // Update user - use the original userId from the database record
-      const updatedUser = await updateUser(user.userId, updateData);
-      
-      console.log("Account successfully activated:", updatedUser.userId);
-      
-      toast({
-        title: "Account activated",
-        description: `Welcome to ISN, ${values.name}! Your account is now active.`,
-      });
-      
-      onSuccess(updatedUser);
     } catch (error) {
       console.error("Activation error:", error);
       toast({

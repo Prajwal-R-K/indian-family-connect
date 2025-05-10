@@ -45,30 +45,76 @@ export const updateUser = async (userId: string, userData: Partial<User>): Promi
   // Debug the update operation
   console.log(`Updating user with ID: ${userId} with data:`, userData);
   
+  // Create a separate object for userId update to handle it specially
+  let userIdChange = null;
+  const updatedFields = { ...userData };
+  
+  // Handle userId update separately if needed
+  if (userData.userId && userData.userId !== userId) {
+    userIdChange = userData.userId;
+    delete updatedFields.userId; // Remove it from regular updates
+  }
+  
   // Build dynamic SET clause based on provided fields
-  const setParams = Object.entries(userData)
+  const setParams = Object.entries(updatedFields)
     .filter(([_, value]) => value !== undefined) // Only include defined values
     .map(([key]) => `u.${key} = $${key}`)
     .join(', ');
   
-  if (!setParams.length) {
+  if (!setParams.length && !userIdChange) {
     console.error("No valid parameters to update");
     throw new Error('No valid parameters to update');
   }
   
-  const cypher = `
+  // First update all regular fields
+  let cypher = `
     MATCH (u:User {userId: $userId})
     SET ${setParams}
     RETURN u
   `;
   
-  const params = { userId, ...userData };
+  if (!setParams.length) {
+    // If only changing userId, use a simpler query that just returns the user
+    cypher = `
+      MATCH (u:User {userId: $userId})
+      RETURN u
+    `;
+  }
+  
+  const params = { userId, ...updatedFields };
   console.log("Running update query with params:", JSON.stringify(params));
   const result = await runQuery(cypher, params);
   
   if (!result || result.length === 0) {
     console.error(`No user found with ID: ${userId}`);
     throw new Error('Failed to update user: User not found');
+  }
+  
+  // Handle userId change as a separate operation if needed
+  if (userIdChange) {
+    console.log(`Changing userId from ${userId} to ${userIdChange}`);
+    
+    const userIdUpdateCypher = `
+      MATCH (u:User {userId: $oldUserId})
+      SET u.userId = $newUserId
+      RETURN u
+    `;
+    
+    const userIdUpdateParams = { 
+      oldUserId: userId, 
+      newUserId: userIdChange 
+    };
+    
+    console.log("Running userId update query with params:", JSON.stringify(userIdUpdateParams));
+    const userIdUpdateResult = await runQuery(userIdUpdateCypher, userIdUpdateParams);
+    
+    if (!userIdUpdateResult || userIdUpdateResult.length === 0) {
+      console.error(`Failed to update userId for user: ${userId}`);
+      throw new Error('Failed to update userId');
+    }
+    
+    console.log(`User ID updated from ${userId} to ${userIdChange} successfully`);
+    return userIdUpdateResult[0].u.properties as User;
   }
   
   console.log(`User ${userId} updated successfully`);

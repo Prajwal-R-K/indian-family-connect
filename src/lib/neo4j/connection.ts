@@ -2,21 +2,20 @@
 // Neo4j connection setup
 import neo4j from 'neo4j-driver';
 
-// Neo4j connection details - Using HTTP protocol instead of WebSockets
+// Neo4j connection details - Using secure WebSockets protocol
 export const neo4jConfig = {
-  uri: "neo4j://c5f5e77a.databases.neo4j.io", // Changed from neo4j+s:// to neo4j://
+  uri: "neo4j+s://c5f5e77a.databases.neo4j.io", // Changed back to neo4j+s:// for secure connections
   username: "neo4j",
   password: "Oz9qEfjqCAuuRiokV1WGikXxCv8ktaNlZyVdLty4rXY"
 };
 
-// Create Neo4j driver instance with connection pool config
+// Create Neo4j driver instance with optimized connection pool config
 const driver = neo4j.driver(
   neo4jConfig.uri, 
   neo4j.auth.basic(neo4jConfig.username, neo4jConfig.password),
   {
     maxConnectionPoolSize: 50,
     connectionAcquisitionTimeout: 10000
-    // Removed invalid connectionLivenessCheckTimeout property
   }
 );
 

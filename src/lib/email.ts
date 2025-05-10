@@ -1,10 +1,14 @@
 
 import { getCurrentDateTime } from './utils';
+import { 
+  sendWithSendGrid, 
+  getEmailStatus, 
+  getEmailsForAddress, 
+  retryEmail, 
+  emailTracker 
+} from './email/sendgrid';
 
 // Email service configuration
-// In a production app, you would use a real email service like SendGrid, Mailgun, etc.
-// For now, we'll simulate email sending with more detailed logging and tracking
-
 interface EmailOptions {
   to: string;
   subject: string;
@@ -14,6 +18,7 @@ interface EmailOptions {
 // Track sent emails for demo purposes with more detailed tracking
 const sentEmails: Record<string, EmailOptions[]> = {};
 
+// Send email using SendGrid
 export const sendEmail = async (options: EmailOptions): Promise<boolean> => {
   try {
     console.log('📧 SENDING EMAIL START =====================');
@@ -22,8 +27,14 @@ export const sendEmail = async (options: EmailOptions): Promise<boolean> => {
     console.log(`Body: ${options.body}`);
     console.log('-------------------------------------------');
     
-    // In a real app, you would use an email service API here
-    // For demo, we'll just track the email in our mock storage
+    // Use SendGrid to send the actual email
+    const result = await sendWithSendGrid(
+      options.to, 
+      options.subject, 
+      options.body
+    );
+    
+    // Store in our local tracking for backward compatibility
     if (!sentEmails[options.to]) {
       sentEmails[options.to] = [];
     }
@@ -35,20 +46,18 @@ export const sendEmail = async (options: EmailOptions): Promise<boolean> => {
     
     sentEmails[options.to].push(emailWithTimestamp);
     
-    console.log('✅ EMAIL SENT SUCCESSFULLY!');
-    console.log(`Email record created for ${options.to}`);
-    console.log('📧 SENDING EMAIL END =======================');
-    
-    // For debugging: Show all sent emails
-    console.log('Current email log:', Object.keys(sentEmails).map(email => ({
-      email,
-      count: sentEmails[email].length
-    })));
-    
-    // Simulate email transmission success
-    return true;
+    if (result.success) {
+      console.log('✅ EMAIL SENT SUCCESSFULLY!');
+      console.log(`Email record created for ${options.to} with ID: ${result.emailId}`);
+      console.log('📧 SENDING EMAIL END =======================');
+      return true;
+    } else {
+      console.error('❌ EMAIL SENDING FAILED:', result.error);
+      console.log('📧 SENDING EMAIL END =======================');
+      return false;
+    }
   } catch (error) {
-    console.error('❌ EMAIL SENDING FAILED:', error);
+    console.error('❌ EMAIL SENDING FAILED (EXCEPTION):', error);
     return false;
   }
 };
@@ -96,6 +105,7 @@ Indian Social Network Team
   }
 };
 
+// Legacy functions for backward compatibility
 export const getEmailLogs = (email?: string): Record<string, EmailOptions[]> | EmailOptions[] => {
   if (email && sentEmails[email]) {
     return sentEmails[email];
@@ -114,4 +124,17 @@ export const getLatestEmail = (email: string): EmailOptions | null => {
     return sentEmails[email][sentEmails[email].length - 1];
   }
   return null;
+};
+
+// New email tracking functions
+export const getEmailTrackingInfo = (email: string) => {
+  return getEmailsForAddress(email);
+};
+
+export const retryFailedEmail = async (emailId: string) => {
+  return await retryEmail(emailId);
+};
+
+export const getAllTrackedEmails = () => {
+  return emailTracker;
 };
