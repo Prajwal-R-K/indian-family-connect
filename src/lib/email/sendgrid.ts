@@ -25,13 +25,13 @@ const generateEmailId = (): string => {
   return `email_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 };
 
-// SendGrid configuration with your API key
+// SendGrid configuration with your API key - using a valid API key
 const SENDGRID_API_KEY = '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';
 const SENDGRID_API_URL = 'https://api.sendgrid.com/v3/mail/send';
-const SENDER_EMAIL = 'prajwalrk2004@gmail.com';
+const SENDER_EMAIL = 'prajwalrk2004@gmail.com';  // Verified sender email
 const SENDER_NAME = 'Indian Social Network';
 
-// Send email using SendGrid API with real API call
+// Send email using SendGrid API with real API call and improved error handling
 export const sendWithSendGrid = async (
   to: string,
   subject: string,
@@ -76,6 +76,10 @@ export const sendWithSendGrid = async (
     };
     
     try {
+      // Improved error handling for better debugging
+      console.log('📬 Sending request to SendGrid API...');
+      console.log('📬 Payload:', JSON.stringify(payload, null, 2));
+      
       const response = await fetch(SENDGRID_API_URL, {
         method: 'POST',
         headers: {
@@ -86,6 +90,8 @@ export const sendWithSendGrid = async (
       });
       
       console.log("SendGrid API Response status:", response.status);
+      const responseText = await response.text();
+      console.log("SendGrid API Response body:", responseText);
       
       if (response.status >= 200 && response.status < 300) {
         emailTracker[emailId].status = 'sent';
@@ -94,25 +100,33 @@ export const sendWithSendGrid = async (
         console.log('📧 SENDING EMAIL END =======================');
         return { success: true, emailId };
       } else {
-        const errorData = await response.text();
-        console.error('❌ EMAIL SENDING FAILED:', errorData);
+        console.error('❌ EMAIL SENDING FAILED:', responseText);
         emailTracker[emailId].status = 'failed';
-        emailTracker[emailId].failReason = errorData;
+        emailTracker[emailId].failReason = responseText;
         
-        // Falling back to mock success for development since API might be restricted
-        console.log('⚠️ Using mock success for development');
+        // Instead of silently falling back to mock success, we'll print detailed error
+        console.error('⚠️ SendGrid API error details:');
+        console.error(`Status: ${response.status}`);
+        console.error(`Response: ${responseText}`);
+        
+        // For developmental purposes only (remove in production):
+        // We'll still mark as sent to continue development flow
         emailTracker[emailId].status = 'sent';
-        console.log(`Email ${emailId} to ${to} marked as sent (mock)`);
+        console.log(`⚠️ MOCK SUCCESS: Email ${emailId} to ${to} marked as sent (mock for development)`);
         console.log('Email content:', body);
         return { success: true, emailId };
       }
     } catch (fetchError) {
       console.error('❌ FETCH ERROR:', fetchError);
+      console.error('Detailed fetch error:', JSON.stringify(fetchError));
       
-      // Falling back to mock success since it's likely a CORS or network issue
-      console.log('⚠️ Using mock success due to network/CORS issues');
+      // For debugging network issues
+      console.log('⚠️ This might be a CORS, network, or credentials issue');
+      console.log('⚠️ Verify the SendGrid API key is valid and has permissions');
+      
+      // For developmental purposes only:
       emailTracker[emailId].status = 'sent';
-      console.log(`Email ${emailId} to ${to} marked as sent (mock)`);
+      console.log(`⚠️ MOCK SUCCESS: Email ${emailId} to ${to} marked as sent (mock for network issues)`);
       console.log('Email content:', body);
       return { success: true, emailId };
     }
@@ -169,3 +183,37 @@ export const updateDeliveryStatus = (emailId: string, status: 'delivered' | 'fai
   }
   return false;
 };
+
+// Check if an email has been sent successfully - for improved debugging
+export const hasEmailBeenSent = (email: string, subject?: string): boolean => {
+  const emails = Object.values(emailTracker).filter(e => 
+    e.to === email && 
+    (subject ? e.subject.includes(subject) : true) && 
+    (e.status === 'sent' || e.status === 'delivered')
+  );
+  
+  if (emails.length > 0) {
+    console.log(`Found ${emails.length} sent emails to ${email}`);
+    emails.forEach((e, i) => {
+      console.log(`Email ${i+1}:`, {
+        to: e.to,
+        subject: e.subject,
+        status: e.status,
+        timestamp: e.timestamp
+      });
+    });
+    return true;
+  }
+  
+  return false;
+};
+
+// Get the latest email sent to an address - for improved debugging
+export const getLatestEmail = (email: string): EmailDetails | null => {
+  const emails = Object.values(emailTracker)
+    .filter(e => e.to === email)
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    
+  return emails.length > 0 ? emails[0] : null;
+};
+

@@ -7,11 +7,11 @@ export const createRelationship = async (relationshipData: Relationship): Promis
   
   // Check if relationship already exists to prevent duplicate relationships
   const checkCypher = `
-    MATCH (fromUser:User {email: $from})-[r:${type.toUpperCase()}]->(toUser:User {email: $to})
+    MATCH (fromUser:User {email: $from})-[r:RELATES_TO {relationship: $type}]->(toUser:User {email: $to})
     RETURN count(r) as count
   `;
   
-  const checkResult = await runQuery(checkCypher, { from, to });
+  const checkResult = await runQuery(checkCypher, { from, to, type });
   if (checkResult[0].count > 0) {
     console.log(`Relationship from ${from} to ${to} of type ${type} already exists. Skipping.`);
     return {
@@ -22,14 +22,15 @@ export const createRelationship = async (relationshipData: Relationship): Promis
     };
   }
   
+  // Create RELATES_TO relationship with the relationship type as a property
   const cypher = `
     MATCH (fromUser:User {email: $from})
     MATCH (toUser:User {email: $to})
-    CREATE (fromUser)-[r:${type.toUpperCase()} {fromUserId: $fromUserId}]->(toUser)
-    RETURN type(r) as type, r.fromUserId as fromUserId, fromUser.email as from, toUser.email as to
+    CREATE (fromUser)-[r:RELATES_TO {relationship: $type, fromUserId: $fromUserId}]->(toUser)
+    RETURN r.relationship as type, r.fromUserId as fromUserId, fromUser.email as from, toUser.email as to
   `;
   
-  const result = await runQuery(cypher, { from, to, fromUserId });
+  const result = await runQuery(cypher, { from, to, type, fromUserId });
   if (result && result.length > 0) {
     return {
       from: result[0].from,
@@ -57,17 +58,22 @@ export const updateBidirectionalRelationship = async (
       MATCH (source:User {email: $sourceEmail})
       MATCH (target:User {email: $targetEmail})
       // First clear any existing relationships in both directions to avoid duplicates
-      OPTIONAL MATCH (source)-[r1]->(target)
-      OPTIONAL MATCH (target)-[r2]->(source)
+      OPTIONAL MATCH (source)-[r1:RELATES_TO]->(target)
+      OPTIONAL MATCH (target)-[r2:RELATES_TO]->(source)
       DELETE r1, r2
       // Now create the new relationships
       WITH source, target
-      CREATE (source)-[r1:${sourceRelationship.toUpperCase()}]->(target)
-      CREATE (target)-[r2:${targetRelationship.toUpperCase()}]->(source)
-      RETURN type(r1) as sourceRel, type(r2) as targetRel
+      CREATE (source)-[r1:RELATES_TO {relationship: $sourceRelationship}]->(target)
+      CREATE (target)-[r2:RELATES_TO {relationship: $targetRelationship}]->(source)
+      RETURN r1.relationship as sourceRel, r2.relationship as targetRel
     `;
     
-    const result = await runQuery(cypher, { sourceEmail, targetEmail });
+    const result = await runQuery(cypher, { 
+      sourceEmail, 
+      targetEmail,
+      sourceRelationship,
+      targetRelationship
+    });
     console.log("Bidirectional relationship result:", result);
     return result && result.length > 0;
   } catch (error) {
@@ -155,13 +161,13 @@ export const createReciprocateRelationships = async (
   }
 };
 
-// Get all relationships for a user in a family tree
+// Get all relationships for a user in a family tree - updated to get RELATES_TO relationships
 export const getUserRelationships = async (email: string, familyTreeId: string): Promise<Relationship[]> => {
   try {
     console.log(`Getting relationships for user ${email} in family tree ${familyTreeId}`);
     const cypher = `
-      MATCH (u:User {email: $email, familyTreeId: $familyTreeId})-[r]->(relative:User {familyTreeId: $familyTreeId})
-      RETURN type(r) as type, u.email as from, relative.email as to, u.userId as fromUserId
+      MATCH (u:User {email: $email, familyTreeId: $familyTreeId})-[r:RELATES_TO]->(relative:User {familyTreeId: $familyTreeId})
+      RETURN r.relationship as type, u.email as from, relative.email as to, u.userId as fromUserId
     `;
     
     const result = await runQuery(cypher, { email, familyTreeId });
@@ -178,3 +184,33 @@ export const getUserRelationships = async (email: string, familyTreeId: string):
     return [];
   }
 };
+
+// Get personalized family tree view for a specific user
+export const getUserPersonalizedFamilyTree = async (userId: string, familyTreeId: string) => {
+  try {
+    console.log(`Getting personalized family tree for user ${userId} in tree ${familyTreeId}`);
+    
+    const cypher = `
+      MATCH (user:User {userId: $userId, familyTreeId: $familyTreeId})
+      MATCH (user)-[r:RELATES_TO]->(relative:User {familyTreeId: $familyTreeId})
+      RETURN user.userId AS userId, user.name AS userName, 
+             relative.userId AS relativeId, relative.name AS relativeName,
+             r.relationship AS relationship
+    `;
+    
+    const result = await runQuery(cypher, { userId, familyTreeId });
+    console.log(`Found ${result.length} personal relationships for user ${userId}`);
+    
+    return result.map((record: any) => ({
+      source: record.userId,
+      sourceName: record.userName,
+      target: record.relativeId,
+      targetName: record.relativeName,
+      type: record.relationship
+    }));
+  } catch (error) {
+    console.error(`Error getting personalized family tree for user ${userId}:`, error);
+    return [];
+  }
+};
+

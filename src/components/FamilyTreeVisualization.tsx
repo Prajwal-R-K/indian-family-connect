@@ -4,6 +4,7 @@ import { User } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getFamilyRelationships } from '@/lib/neo4j/family-tree';
+import { getUserPersonalizedFamilyTree } from '@/lib/neo4j/relationships';
 
 interface FamilyMember {
   userId: string;
@@ -34,13 +35,14 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user,
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch relationship data
+    // Fetch user-specific relationship data
     const fetchRelationships = async () => {
       try {
         if (user.familyTreeId) {
-          const relations = await getFamilyRelationships(user.familyTreeId);
-          console.log("Fetched relationships for visualization:", relations);
-          setRelationships(relations);
+          // Get personalized view of relationships for the current user
+          const personalRelations = await getUserPersonalizedFamilyTree(user.userId, user.familyTreeId);
+          console.log("Fetched personal relationships for visualization:", personalRelations);
+          setRelationships(personalRelations);
         }
       } catch (error) {
         console.error("Failed to fetch relationships:", error);
@@ -50,7 +52,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user,
     };
     
     fetchRelationships();
-  }, [user.familyTreeId]);
+  }, [user.familyTreeId, user.userId]);
 
   useEffect(() => {
     if (!canvasRef.current || isLoading) return;
@@ -289,3 +291,4 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user,
 };
 
 export default FamilyTreeVisualization;
+

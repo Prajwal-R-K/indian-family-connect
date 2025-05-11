@@ -39,9 +39,9 @@ export const getFamilyMembers = async (familyTreeId: string) => {
     // Query to get all users in a family tree including relationship info
     const cypher = `
       MATCH (u:User {familyTreeId: $familyTreeId})
-      OPTIONAL MATCH (creator:User)-[r]->(u)
+      OPTIONAL MATCH (creator:User)-[r:RELATES_TO]->(u)
       RETURN u.userId AS userId, u.name AS name, u.email AS email, u.status AS status, 
-             u.myRelationship as myRelationship, type(r) AS relationship, creator.userId AS createdBy,
+             u.myRelationship as myRelationship, r.relationship AS relationship, creator.userId AS createdBy,
              u.profilePicture as profilePicture
     `;
     
@@ -64,14 +64,14 @@ export const getFamilyMembers = async (familyTreeId: string) => {
   }
 };
 
-// Get the relationships between members in a family tree
+// Get the relationships between members in a family tree - updated for RELATES_TO
 export const getFamilyRelationships = async (familyTreeId: string) => {
   try {
     console.log(`Fetching family relationships for tree: ${familyTreeId}`);
     
     const cypher = `
-      MATCH (u1:User {familyTreeId: $familyTreeId})-[r]->(u2:User {familyTreeId: $familyTreeId})
-      RETURN u1.userId AS source, u2.userId AS target, type(r) AS type, 
+      MATCH (u1:User {familyTreeId: $familyTreeId})-[r:RELATES_TO]->(u2:User {familyTreeId: $familyTreeId})
+      RETURN u1.userId AS source, u2.userId AS target, r.relationship AS type, 
              u1.name AS sourceName, u2.name AS targetName
     `;
     
@@ -91,24 +91,30 @@ export const getFamilyRelationships = async (familyTreeId: string) => {
   }
 };
 
-// Create reciprocal relationships between family members
+// Create reciprocal relationships between family members - updated for RELATES_TO
 export const createReciprocalRelationship = async (familyTreeId: string, userId1: string, userId2: string, relationship1: string, relationship2: string) => {
   try {
     const cypher = `
       MATCH (u1:User {familyTreeId: $familyTreeId, userId: $userId1})
       MATCH (u2:User {familyTreeId: $familyTreeId, userId: $userId2})
       // First clear any existing relationships to avoid duplicates
-      OPTIONAL MATCH (u1)-[r1]->(u2)
-      OPTIONAL MATCH (u2)-[r2]->(u1)
+      OPTIONAL MATCH (u1)-[r1:RELATES_TO]->(u2)
+      OPTIONAL MATCH (u2)-[r2:RELATES_TO]->(u1)
       DELETE r1, r2
       // Now create the new relationships
       WITH u1, u2
-      CREATE (u1)-[r1:${relationship1.toUpperCase()}]->(u2)
-      CREATE (u2)-[r2:${relationship2.toUpperCase()}]->(u1)
-      RETURN type(r1) as rel1, type(r2) as rel2
+      CREATE (u1)-[r1:RELATES_TO {relationship: $relationship1}]->(u2)
+      CREATE (u2)-[r2:RELATES_TO {relationship: $relationship2}]->(u1)
+      RETURN r1.relationship as rel1, r2.relationship as rel2
     `;
     
-    const result = await runQuery(cypher, { familyTreeId, userId1, userId2 });
+    const result = await runQuery(cypher, { 
+      familyTreeId, 
+      userId1, 
+      userId2,
+      relationship1, 
+      relationship2 
+    });
     
     if (result && result.length > 0) {
       return true;
@@ -120,15 +126,15 @@ export const createReciprocalRelationship = async (familyTreeId: string, userId1
   }
 };
 
-// Get full family tree visualization data
+// Get full family tree visualization data - updated for RELATES_TO
 export const getFamilyTreeVisualizationData = async (familyTreeId: string) => {
   try {
     // Get all nodes and relationships in one query
     const cypher = `
       MATCH (u:User {familyTreeId: $familyTreeId})
-      OPTIONAL MATCH (u)-[r]->(other:User {familyTreeId: $familyTreeId})
+      OPTIONAL MATCH (u)-[r:RELATES_TO]->(other:User {familyTreeId: $familyTreeId})
       RETURN u.userId AS id, u.name AS name, u.status AS status, u.myRelationship AS myRelationship,
-             u.profilePicture AS profilePicture, collect({target: other.userId, type: type(r)}) AS relationships
+             u.profilePicture AS profilePicture, collect({target: other.userId, type: r.relationship}) AS relationships
     `;
     
     const result = await runQuery(cypher, { familyTreeId });
@@ -151,7 +157,7 @@ export const getFamilyTreeVisualizationData = async (familyTreeId: string) => {
             links.push({
               source: record.id,
               target: rel.target,
-              type: rel.type.toLowerCase()
+              type: rel.type ? rel.type.toLowerCase() : 'family'
             });
           }
         });
@@ -164,3 +170,34 @@ export const getFamilyTreeVisualizationData = async (familyTreeId: string) => {
     return { nodes: [], links: [] };
   }
 };
+
+// Get personal family tree view for a specific user
+export const getUserPersonalFamilyView = async (userId: string, familyTreeId: string) => {
+  try {
+    console.log(`Getting personal family view for user ${userId}`);
+    
+    const cypher = `
+      MATCH (viewer:User {userId: $userId, familyTreeId: $familyTreeId})
+      MATCH (member:User {familyTreeId: $familyTreeId})
+      OPTIONAL MATCH (viewer)-[rel:RELATES_TO]->(member)
+      RETURN member.userId as userId, member.name as name, member.email as email, 
+             member.status as status, member.profilePicture as profilePicture,
+             rel.relationship as relationship
+    `;
+    
+    const result = await runQuery(cypher, { userId, familyTreeId });
+    
+    return result.map(record => ({
+      userId: record.userId,
+      name: record.name,
+      email: record.email,
+      status: record.status,
+      profilePicture: record.profilePicture,
+      relationship: record.relationship || null
+    }));
+  } catch (error) {
+    console.error(`Error getting personal family view for user ${userId}:`, error);
+    return [];
+  }
+};
+

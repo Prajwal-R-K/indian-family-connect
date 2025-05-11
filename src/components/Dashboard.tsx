@@ -8,8 +8,8 @@ import { Plus, Users, Search, Mail, Network } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import FamilyTreeVisualization from "./FamilyTreeVisualization";
-import { getFamilyMembers, getFamilyRelationships } from "@/lib/neo4j/family-tree";
-import { getUserRelationships } from "@/lib/neo4j/relationships";
+import { getFamilyMembers, getFamilyRelationships, getUserPersonalFamilyView } from "@/lib/neo4j/family-tree";
+import { getUserRelationships, getUserPersonalizedFamilyTree } from "@/lib/neo4j/relationships";
 
 interface DashboardProps {
   user: User;
@@ -20,9 +20,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [relationships, setRelationships] = useState<any[]>([]);
   const [userRelationships, setUserRelationships] = useState<any[]>([]);
+  const [personalizedView, setPersonalizedView] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [invitationCount, setInvitationCount] = useState(0);
   const [showAllMembers, setShowAllMembers] = useState(false);
+  const [viewMode, setViewMode] = useState<'all' | 'personal'>('personal');
   
   useEffect(() => {
     const loadFamilyData = async () => {
@@ -46,9 +48,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         
         // Load current user's specific relationships
         if (user.email) {
+          // Get user's outgoing relationships
           const userRels = await getUserRelationships(user.email, user.familyTreeId);
           console.log("Loaded user relationships:", userRels);
           setUserRelationships(userRels);
+          
+          // Get user's personalized view
+          const personalView = await getUserPersonalizedFamilyTree(user.userId, user.familyTreeId);
+          console.log("Loaded personalized view:", personalView);
+          setPersonalizedView(personalView);
         }
       } catch (error) {
         console.error("Error loading family members:", error);
@@ -105,8 +113,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     });
   };
   
+  const toggleViewMode = () => {
+    setViewMode(viewMode === 'all' ? 'personal' : 'all');
+    toast({
+      title: "View Mode",
+      description: `Switched to ${viewMode === 'all' ? 'personal' : 'all family members'} view.`,
+    });
+  };
+  
   // Get relationship description between current user and another member
   const getRelationship = (memberId: string) => {
+    // Try to find user's personal relationship to this member
+    const personalRel = personalizedView.find(r => r.target === memberId);
+    if (personalRel) {
+      return personalRel.type.charAt(0).toUpperCase() + personalRel.type.slice(1);
+    }
+    
     // Try to find a direct relationship from current user to this member
     const directRel = relationships.find(r => 
       r.source === user.userId && r.target === memberId
@@ -224,20 +246,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-center">
-              <span className="text-2xl font-bold">{relationships.length}</span>
+              <span className="text-2xl font-bold">{personalizedView.length}</span>
               <Button 
                 size="sm" 
                 variant="outline" 
                 className="flex items-center gap-1"
-                onClick={() => {
-                  toast({
-                    title: "Relationships",
-                    description: "You have connections with " + userRelationships.length + " family members.",
-                  });
-                }}
+                onClick={toggleViewMode}
               >
                 <Network className="h-4 w-4" />
-                <span>View</span>
+                <span>
+                  {viewMode === 'personal' ? "All View" : "Personal View"}
+                </span>
               </Button>
             </div>
           </CardContent>
@@ -266,7 +285,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           <CardHeader>
             <CardTitle className="text-xl">Your Family Tree</CardTitle>
             <CardDescription>
-              Interactive view of your family connections
+              {viewMode === 'personal' 
+                ? "Your personal view of family relationships" 
+                : "Interactive view of all family connections"}
             </CardDescription>
           </CardHeader>
           <CardContent className="h-80 flex items-center justify-center bg-gray-100 rounded-lg">
@@ -298,37 +319,78 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         </Card>
         
         <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Family Relationships</CardTitle>
-            <CardDescription>Connections between family members</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">Family Relationships</CardTitle>
+              <CardDescription>
+                {viewMode === 'personal' ? "Your personal connections" : "All family connections"}
+              </CardDescription>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={toggleViewMode}
+              className="h-8"
+            >
+              {viewMode === 'personal' ? "All" : "Personal"}
+            </Button>
           </CardHeader>
           <CardContent className="max-h-[300px] overflow-y-auto">
-            {relationships.length > 0 ? (
-              <div className="space-y-3">
-                {relationships.slice(0, 10).map((rel, idx) => {
-                  const source = familyMembers.find(m => m.userId === rel.source)?.name || "Someone";
-                  const target = familyMembers.find(m => m.userId === rel.target)?.name || "someone";
-                  return (
-                    <div key={idx} className="flex items-start gap-2">
-                      <div className="w-2 h-2 mt-2 rounded-full bg-isn-primary"></div>
-                      <p className="text-sm">
-                        <span className="font-medium">{source}</span> is {rel.type} of{" "}
-                        <span className="font-medium">{target}</span>
-                      </p>
+            {viewMode === 'personal' ? (
+              personalizedView.length > 0 ? (
+                <div className="space-y-3">
+                  {personalizedView.slice(0, 10).map((rel, idx) => {
+                    const target = familyMembers.find(m => m.userId === rel.target)?.name || "someone";
+                    return (
+                      <div key={idx} className="flex items-start gap-2">
+                        <div className="w-2 h-2 mt-2 rounded-full bg-isn-primary"></div>
+                        <p className="text-sm">
+                          <span className="font-medium">You</span> see {target} as your{" "}
+                          <span className="font-medium">{rel.type}</span>
+                        </p>
+                      </div>
+                    );
+                  })}
+                  {personalizedView.length > 10 && (
+                    <div className="text-center text-xs text-gray-500 mt-2">
+                      + {personalizedView.length - 10} more relationships
                     </div>
-                  );
-                })}
-                {relationships.length > 10 && (
-                  <div className="text-center text-xs text-gray-500 mt-2">
-                    + {relationships.length - 10} more relationships
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">
+                  <p>No personal relationships defined yet</p>
+                  <p className="text-xs mt-1">Define your relationship to family members when inviting them</p>
+                </div>
+              )
             ) : (
-              <div className="text-center text-gray-500 py-8">
-                <p>No relationships yet</p>
-                <p className="text-xs mt-1">Invite family members to create connections</p>
-              </div>
+              relationships.length > 0 ? (
+                <div className="space-y-3">
+                  {relationships.slice(0, 10).map((rel, idx) => {
+                    const source = familyMembers.find(m => m.userId === rel.source)?.name || "Someone";
+                    const target = familyMembers.find(m => m.userId === rel.target)?.name || "someone";
+                    return (
+                      <div key={idx} className="flex items-start gap-2">
+                        <div className="w-2 h-2 mt-2 rounded-full bg-isn-primary"></div>
+                        <p className="text-sm">
+                          <span className="font-medium">{source}</span> is {rel.type} of{" "}
+                          <span className="font-medium">{target}</span>
+                        </p>
+                      </div>
+                    );
+                  })}
+                  {relationships.length > 10 && (
+                    <div className="text-center text-xs text-gray-500 mt-2">
+                      + {relationships.length - 10} more relationships
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">
+                  <p>No relationships yet</p>
+                  <p className="text-xs mt-1">Invite family members to create connections</p>
+                </div>
+              )
             )}
           </CardContent>
         </Card>
@@ -338,3 +400,4 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 };
 
 export default Dashboard;
+
