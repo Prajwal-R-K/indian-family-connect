@@ -38,17 +38,17 @@ export const createInvitedUsers = async (
         continue;
       }
       
-      const userId = generateId('U');
+      // Removed userId generation for invited users - they will set their own userId during activation
       const tempPassword = generateTempPassword();
-      const hashedPassword = hashPassword(tempPassword); // No longer hashing as per user request
+      const hashedPassword = hashPassword(tempPassword);
       const currentDateTime = getCurrentDateTime();
       
       console.log(`🔑 Generated temp password for ${member.email}: ${tempPassword}`);
       
-      // Create invited user
+      // Create invited user without userId (will be set during activation)
       try {
         const newUser = await createUser({
-          userId,
+          // No userId here - will be set during activation
           name: `Guest (${member.relationship})`,
           email: member.email,
           password: hashedPassword,
@@ -59,7 +59,7 @@ export const createInvitedUsers = async (
           createdAt: currentDateTime
         });
         
-        console.log(`✅ Successfully created user: ${newUser.userId} for ${member.email}`);
+        console.log(`✅ Successfully created user for ${member.email}`);
         
         // Create relationship
         await createRelationship({

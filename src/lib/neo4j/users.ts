@@ -6,6 +6,12 @@ import { hashPassword, verifyPassword, generateTempPassword } from './auth';
 
 // User Management Functions
 export const createUser = async (userData: Partial<User>): Promise<User> => {
+  // If no userId is provided, use a temporary placeholder for invited users
+  if (!userData.userId && userData.status === 'invited') {
+    userData.userId = `temp_${generateId('U')}`;
+    console.log(`Generated temporary userId ${userData.userId} for invited user ${userData.email}`);
+  }
+  
   const cypher = `
     CREATE (u:User {
       userId: $userId,

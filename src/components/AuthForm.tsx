@@ -344,7 +344,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
           toast({
             title: "Activation partial success",
             description: "Your account is active but we couldn't change your User ID as it's already taken.",
-            variant: "warning",
+            variant: "default", // Fixed from "warning" to "default" to match allowed types
           });
           setIsLoading(false);
           onSuccess(updatedUser);
