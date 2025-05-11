@@ -113,3 +113,32 @@ export const getOppositeRelationship = (relationship: string): string => {
   
   return opposites[relationship.toLowerCase()] || "family";
 };
+
+// Function to create reciprocal relationships when a user confirms their relationship
+export const createReciprocateRelationships = async (
+  user: { email: string, userId: string },
+  inviterEmail: string,
+  userRelationship: string
+): Promise<boolean> => {
+  try {
+    // Get the appropriate relationship type from inviter to user
+    const inviterRelationship = getOppositeRelationship(userRelationship);
+    
+    // Create both directional relationships
+    await updateBidirectionalRelationship(
+      user.email,
+      inviterEmail,
+      userRelationship,
+      inviterRelationship
+    );
+    
+    console.log(`Created reciprocal relationships between ${user.email} and ${inviterEmail}`);
+    console.log(`- ${user.email} is ${userRelationship} to ${inviterEmail}`);
+    console.log(`- ${inviterEmail} is ${inviterRelationship} to ${user.email}`);
+    
+    return true;
+  } catch (error) {
+    console.error("Error creating reciprocal relationships:", error);
+    return false;
+  }
+};

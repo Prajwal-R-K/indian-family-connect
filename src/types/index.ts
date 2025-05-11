@@ -3,7 +3,7 @@ export interface User {
   userId: string;
   name: string;
   email: string;
-  password?: string; // Added password property
+  password?: string;
   status: 'active' | 'invited';
   familyTreeId: string;
   createdBy?: string;
@@ -13,6 +13,7 @@ export interface User {
   profession?: string;
   location?: string;
   profilePicture?: string;
+  myRelationship?: string; // Added missing property for user's relationship in the family
 }
 
 export interface FamilyTree {
