@@ -73,19 +73,48 @@ export const sendInvitationEmail = async (
   
   const subject = `You've been invited to join the Indian Social Network Family Tree`;
   
+  // HTML formatted email for better appearance
   const body = `
-Dear Family Member,
-
-You've been added to a family tree by ${inviter} as their ${relationship}.
-
-🔹 Family Tree ID: ${familyTreeId}
-🔹 Temporary Password: ${password}
-
-Please activate your account by visiting our website and using these credentials.
-Go to: https://indian-social-network.com/auth and click on "Activate" tab.
-
-Warm regards,
-Indian Social Network Team
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background-color: #4a5568; color: white; padding: 10px; text-align: center; }
+    .content { padding: 20px; border: 1px solid #e2e8f0; }
+    .footer { font-size: 12px; text-align: center; margin-top: 20px; color: #718096; }
+    .highlight { background-color: #f7fafc; padding: 10px; border-left: 4px solid #4a5568; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>Indian Social Network</h2>
+    </div>
+    <div class="content">
+      <p>Dear Family Member,</p>
+      <p>You've been added to a family tree by <strong>${inviter}</strong> as their <strong>${relationship}</strong>.</p>
+      
+      <div class="highlight">
+        <p>🔹 <strong>Family Tree ID:</strong> ${familyTreeId}</p>
+        <p>🔹 <strong>Temporary Password:</strong> ${password}</p>
+      </div>
+      
+      <p>Please activate your account by visiting our website and using these credentials.</p>
+      <p>Go to: <a href="https://indian-social-network.com/auth">https://indian-social-network.com/auth</a> and click on the "Activate" tab.</p>
+      
+      <p>During activation, you'll be asked to confirm your relationship from your perspective.</p>
+      
+      <p>Warm regards,<br>
+      Indian Social Network Team</p>
+    </div>
+    <div class="footer">
+      <p>This is an automated message, please do not reply directly to this email.</p>
+    </div>
+  </div>
+</body>
+</html>
   `;
   
   try {

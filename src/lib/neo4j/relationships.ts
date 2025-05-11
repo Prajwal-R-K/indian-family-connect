@@ -40,3 +40,76 @@ export const createRelationship = async (relationshipData: Relationship): Promis
   }
   throw new Error('Failed to create relationship');
 };
+
+export const updateBidirectionalRelationship = async (
+  sourceEmail: string, 
+  targetEmail: string, 
+  sourceRelationship: string,
+  targetRelationship: string
+): Promise<boolean> => {
+  try {
+    const cypher = `
+      MATCH (source:User {email: $sourceEmail})
+      MATCH (target:User {email: $targetEmail})
+      MERGE (source)-[r1:${sourceRelationship.toUpperCase()}]->(target)
+      MERGE (target)-[r2:${targetRelationship.toUpperCase()}]->(source)
+      RETURN type(r1) as sourceRel, type(r2) as targetRel
+    `;
+    
+    const result = await runQuery(cypher, { sourceEmail, targetEmail });
+    return result && result.length > 0;
+  } catch (error) {
+    console.error("Error creating bidirectional relationship:", error);
+    return false;
+  }
+};
+
+export const getRelationshipTypes = (): string[] => {
+  return [
+    "father",
+    "mother",
+    "son",
+    "daughter",
+    "brother",
+    "sister",
+    "husband",
+    "wife",
+    "grandfather",
+    "grandmother",
+    "grandson",
+    "granddaughter",
+    "uncle",
+    "aunt",
+    "nephew",
+    "niece",
+    "cousin",
+    "friend",
+    "other"
+  ];
+};
+
+export const getOppositeRelationship = (relationship: string): string => {
+  const opposites: Record<string, string> = {
+    "father": "son",
+    "mother": "son",
+    "son": "father",  // This is an approximation, could be mother too
+    "daughter": "father",  // This is an approximation, could be mother too
+    "brother": "brother",
+    "sister": "brother",  // This is an approximation, could be sister too
+    "husband": "wife",
+    "wife": "husband",
+    "grandfather": "grandson",
+    "grandmother": "grandson",
+    "grandson": "grandfather",  // This is an approximation, could be grandmother too
+    "granddaughter": "grandfather",  // This is an approximation, could be grandmother too
+    "uncle": "nephew",
+    "aunt": "nephew",
+    "nephew": "uncle",  // This is an approximation, could be aunt too
+    "niece": "uncle",  // This is an approximation, could be aunt too
+    "cousin": "cousin",
+    "friend": "friend",
+    "other": "other"
+  };
+  
+  return opposites[relationship.toLowerCase()] || "family";
+};

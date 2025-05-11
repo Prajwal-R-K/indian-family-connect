@@ -8,7 +8,7 @@ import { Plus, Users, Search, Mail, Network } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import FamilyTreeVisualization from "./FamilyTreeVisualization";
-import { getFamilyMembers } from "@/lib/neo4j/family-tree";
+import { getFamilyMembers, getFamilyRelationships } from "@/lib/neo4j/family-tree";
 
 interface DashboardProps {
   user: User;
@@ -17,15 +17,22 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const navigate = useNavigate();
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
+  const [relationships, setRelationships] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [invitationCount, setInvitationCount] = useState(0);
+  const [showAllMembers, setShowAllMembers] = useState(false);
   
   useEffect(() => {
     const loadFamilyData = async () => {
       try {
         setLoading(true);
+        // Load family members and relationships
         const members = await getFamilyMembers(user.familyTreeId);
         setFamilyMembers(members);
+        
+        const relations = await getFamilyRelationships(user.familyTreeId);
+        setRelationships(relations);
+        
         // Count pending invitations
         const pendingInvites = members.filter(member => member.status === 'invited').length;
         setInvitationCount(pendingInvites);
@@ -56,17 +63,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   
   // Button handlers
   const handleViewFamily = () => {
-    if (familyMembers.length > 0) {
-      toast({
-        title: "Family Members",
-        description: `You have ${familyMembers.length} family members in your tree.`,
-      });
-    } else {
-      toast({
-        title: "No Family Members",
-        description: "Add family members to see them here.",
-      });
-    }
+    setShowAllMembers(!showAllMembers);
   };
   
   const handleManageInvitations = () => {
@@ -92,6 +89,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       title: "Profile",
       description: "Profile management coming soon!",
     });
+  };
+  
+  // Get relationship description between current user and another member
+  const getRelationship = (memberId: string) => {
+    const rel = relationships.find(r => r.source === user.userId && r.target === memberId);
+    if (rel) {
+      return rel.type.charAt(0).toUpperCase() + rel.type.slice(1);
+    }
+    
+    const reverseRel = relationships.find(r => r.target === user.userId && r.source === memberId);
+    if (reverseRel) {
+      return `${reverseRel.type.charAt(0).toUpperCase() + reverseRel.type.slice(1)} of`;
+    }
+    
+    return "Family member";
   };
   
   return (
@@ -128,9 +140,33 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 onClick={handleViewFamily}
               >
                 <Users className="h-4 w-4" />
-                <span>View</span>
+                <span>{showAllMembers ? "Hide" : "View"}</span>
               </Button>
             </div>
+            
+            {showAllMembers && familyMembers.length > 0 && (
+              <div className="mt-4 space-y-2 max-h-40 overflow-y-auto pr-2">
+                {familyMembers.map((member) => (
+                  <div key={member.userId} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
+                    <Avatar className="h-6 w-6">
+                      <AvatarFallback className={`text-xs ${member.status === 'invited' ? 'bg-yellow-500' : 'bg-isn-secondary'}`}>
+                        {getNameInitials(member.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{member.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{getRelationship(member.userId)}</p>
+                    </div>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                      member.status === 'active' ? 'bg-green-100 text-green-800' : 
+                      member.status === 'invited' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {member.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
         
@@ -233,9 +269,27 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             <CardDescription>Latest updates in your family network</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center text-gray-500 py-8">
-              <p>No recent activities</p>
-            </div>
+            {relationships.length > 0 ? (
+              <div className="space-y-3">
+                {relationships.slice(0, 5).map((rel, idx) => {
+                  const source = familyMembers.find(m => m.userId === rel.source)?.name || "Someone";
+                  const target = familyMembers.find(m => m.userId === rel.target)?.name || "someone";
+                  return (
+                    <div key={idx} className="flex items-start gap-2">
+                      <div className="w-2 h-2 mt-2 rounded-full bg-isn-primary"></div>
+                      <p className="text-sm">
+                        <span className="font-medium">{source}</span> is {rel.type} of{" "}
+                        <span className="font-medium">{target}</span>
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                <p>No recent activities</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

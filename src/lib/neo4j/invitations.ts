@@ -74,7 +74,7 @@ export const createInvitedUsers = async (
         // Send invitation email with explicit await and aggressive retry logic
         console.log(`📨 Attempting to send email to ${member.email}`);
         
-        // Try sending email up to 3 times
+        // Try sending email up to 3 times with increasing delays
         let emailSent = false;
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
@@ -92,11 +92,11 @@ export const createInvitedUsers = async (
               break;
             } else {
               console.error(`❌ Failed to send email to ${member.email} on attempt ${attempt}`);
-              if (attempt < 3) await new Promise(r => setTimeout(r, 1000)); // Wait 1 second before retry
+              if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1000)); // Exponential backoff
             }
           } catch (emailError) {
             console.error(`❌ Error sending email to ${member.email} on attempt ${attempt}: ${emailError}`);
-            if (attempt < 3) await new Promise(r => setTimeout(r, 1000)); // Wait 1 second before retry
+            if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1000)); // Exponential backoff
           }
         }
         

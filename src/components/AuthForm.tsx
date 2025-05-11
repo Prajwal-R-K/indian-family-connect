@@ -57,6 +57,7 @@ const activateSchema = z.object({
   userId: z.string().min(4, "User ID must be at least 4 characters"),
   newPassword: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string(),
+  myRelationship: z.string().min(1, "Please confirm your relationship"),
 }).refine((data) => data.newPassword === data.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
@@ -112,6 +113,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       userId: "",
       newPassword: "",
       confirmPassword: "",
+      myRelationship: "",
     },
   });
 
@@ -323,7 +325,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       const updateData: Partial<User> = {
         name: values.name,
         status: "active",
-        password: hashPassword(values.newPassword)
+        password: hashPassword(values.newPassword),
+        myRelationship: values.myRelationship // Store user's self-defined relationship
       };
       
       // FIXED: First update everything except userId
@@ -336,7 +339,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       const updatedUser = await updateUser(user.userId, updateData);
       
       // If user wants a different userId, update it separately
-      if (values.userId && values.userId !== user.userId) {
+      if (values.userId) {
         // Check if new userId already exists
         const existingUser = await getUserByEmailOrId(values.userId);
         if (existingUser) {
@@ -344,7 +347,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
           toast({
             title: "Activation partial success",
             description: "Your account is active but we couldn't change your User ID as it's already taken.",
-            variant: "default", // Fixed from "warning" to "default" to match allowed types
+            variant: "default",
           });
           setIsLoading(false);
           onSuccess(updatedUser);
@@ -682,6 +685,43 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
                       <FormLabel>Choose User ID</FormLabel>
                       <FormControl>
                         <Input placeholder="Create a user ID" {...field} className="isn-input" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={activateForm.control}
+                  name="myRelationship"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm Your Relationship in the Family</FormLabel>
+                      <FormControl>
+                        <select 
+                          {...field} 
+                          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-isn-primary focus:border-isn-primary"
+                        >
+                          <option value="">Select your relationship</option>
+                          <option value="father">Father</option>
+                          <option value="mother">Mother</option>
+                          <option value="son">Son</option>
+                          <option value="daughter">Daughter</option>
+                          <option value="husband">Husband</option>
+                          <option value="wife">Wife</option>
+                          <option value="brother">Brother</option>
+                          <option value="sister">Sister</option>
+                          <option value="grandfather">Grandfather</option>
+                          <option value="grandmother">Grandmother</option>
+                          <option value="grandson">Grandson</option>
+                          <option value="granddaughter">Granddaughter</option>
+                          <option value="uncle">Uncle</option>
+                          <option value="aunt">Aunt</option>
+                          <option value="nephew">Nephew</option>
+                          <option value="niece">Niece</option>
+                          <option value="cousin">Cousin</option>
+                          <option value="other">Other</option>
+                        </select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
