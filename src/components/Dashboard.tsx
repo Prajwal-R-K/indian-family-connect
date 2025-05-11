@@ -1,12 +1,14 @@
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { User } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Users, Search, Mail } from "lucide-react";
+import { Plus, Users, Search, Mail, Network } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import FamilyTreeVisualization from "./FamilyTreeVisualization";
+import { getFamilyMembers } from "@/lib/neo4j/family-tree";
 
 interface DashboardProps {
   user: User;
@@ -14,6 +16,33 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const navigate = useNavigate();
+  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [invitationCount, setInvitationCount] = useState(0);
+  
+  useEffect(() => {
+    const loadFamilyData = async () => {
+      try {
+        setLoading(true);
+        const members = await getFamilyMembers(user.familyTreeId);
+        setFamilyMembers(members);
+        // Count pending invitations
+        const pendingInvites = members.filter(member => member.status === 'invited').length;
+        setInvitationCount(pendingInvites);
+      } catch (error) {
+        console.error("Error loading family members:", error);
+        toast({
+          title: "Error",
+          description: "Could not load family members. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadFamilyData();
+  }, [user.familyTreeId]);
   
   // Get first letter of first and last name for avatar
   const getNameInitials = (name: string) => {
@@ -27,16 +56,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   
   // Button handlers
   const handleViewFamily = () => {
-    toast({
-      title: "Family Members",
-      description: "View your family members functionality coming soon!",
-    });
+    if (familyMembers.length > 0) {
+      toast({
+        title: "Family Members",
+        description: `You have ${familyMembers.length} family members in your tree.`,
+      });
+    } else {
+      toast({
+        title: "No Family Members",
+        description: "Add family members to see them here.",
+      });
+    }
   };
   
   const handleManageInvitations = () => {
     toast({
       title: "Invitations",
-      description: "Manage invitations functionality coming soon!",
+      description: `You have ${invitationCount} pending invitations.`,
     });
   };
   
@@ -48,10 +84,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   };
   
   const handleInvite = () => {
-    toast({
-      title: "Invite Members",
-      description: "You can invite more family members from here soon!",
-    });
+    navigate('/invite');
   };
   
   const handleViewProfile = () => {
@@ -87,7 +120,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-center">
-              <span className="text-2xl font-bold">0</span>
+              <span className="text-2xl font-bold">{familyMembers.length || 0}</span>
               <Button 
                 size="sm" 
                 variant="outline" 
@@ -108,7 +141,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-center">
-              <span className="text-2xl font-bold">0</span>
+              <span className="text-2xl font-bold">{invitationCount}</span>
               <Button 
                 size="sm" 
                 variant="outline" 
@@ -167,20 +200,30 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             </CardDescription>
           </CardHeader>
           <CardContent className="h-80 flex items-center justify-center bg-gray-100 rounded-lg">
-            <div className="text-center p-8">
-              <div className="w-20 h-20 mx-auto bg-isn-secondary rounded-full mb-4 flex items-center justify-center text-white">
-                <Users className="h-10 w-10" />
+            {loading ? (
+              <div className="animate-pulse flex flex-col items-center">
+                <div className="w-20 h-20 bg-isn-primary/30 rounded-full mb-4"></div>
+                <div className="h-4 w-40 bg-isn-primary/30 rounded mb-2"></div>
+                <div className="h-4 w-60 bg-isn-primary/30 rounded"></div>
               </div>
-              <h3 className="text-lg font-medium text-gray-700 mb-2">Family Tree Visualization</h3>
-              <p className="text-gray-500 mb-4">Your family tree will appear here as you add more members.</p>
-              <Button 
-                size="sm" 
-                className="bg-isn-primary hover:bg-isn-primary/90"
-                onClick={handleInvite}
-              >
-                Start Adding Members
-              </Button>
-            </div>
+            ) : familyMembers.length > 0 ? (
+              <FamilyTreeVisualization user={user} familyMembers={familyMembers} />
+            ) : (
+              <div className="text-center p-8">
+                <div className="w-20 h-20 mx-auto bg-isn-secondary rounded-full mb-4 flex items-center justify-center text-white">
+                  <Users className="h-10 w-10" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-700 mb-2">Family Tree Visualization</h3>
+                <p className="text-gray-500 mb-4">Your family tree will appear here as you add more members.</p>
+                <Button 
+                  size="sm" 
+                  className="bg-isn-primary hover:bg-isn-primary/90"
+                  onClick={handleInvite}
+                >
+                  Start Adding Members
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
         

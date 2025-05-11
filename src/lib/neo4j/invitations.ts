@@ -38,14 +38,14 @@ export const createInvitedUsers = async (
         continue;
       }
       
-      // Removed userId generation for invited users - they will set their own userId during activation
+      // Generate temporary password for invited users
       const tempPassword = generateTempPassword();
       const hashedPassword = hashPassword(tempPassword);
       const currentDateTime = getCurrentDateTime();
       
       console.log(`🔑 Generated temp password for ${member.email}: ${tempPassword}`);
       
-      // Create invited user without userId (will be set during activation)
+      // Create invited user with temporary ID - will be set during activation
       try {
         const newUser = await createUser({
           // No userId here - will be set during activation
@@ -71,7 +71,7 @@ export const createInvitedUsers = async (
         
         console.log(`✅ Created relationship between ${inviter.email} and ${member.email}`);
         
-        // Send invitation email - with explicit await and retry logic
+        // Send invitation email with explicit await and aggressive retry logic
         console.log(`📨 Attempting to send email to ${member.email}`);
         
         // Try sending email up to 3 times
