@@ -41,7 +41,8 @@ export const getFamilyMembers = async (familyTreeId: string) => {
       MATCH (u:User {familyTreeId: $familyTreeId})
       OPTIONAL MATCH (creator:User)-[r]->(u)
       RETURN u.userId AS userId, u.name AS name, u.email AS email, u.status AS status, 
-             u.myRelationship as myRelationship, type(r) AS relationship, creator.userId AS createdBy
+             u.myRelationship as myRelationship, type(r) AS relationship, creator.userId AS createdBy,
+             u.profilePicture as profilePicture
     `;
     
     const result = await runQuery(cypher, { familyTreeId });
@@ -54,7 +55,8 @@ export const getFamilyMembers = async (familyTreeId: string) => {
       status: record.status,
       myRelationship: record.myRelationship,
       relationship: record.relationship ? record.relationship.toLowerCase() : null,
-      createdBy: record.createdBy
+      createdBy: record.createdBy,
+      profilePicture: record.profilePicture
     }));
   } catch (error) {
     console.error("Error fetching family members:", error);
@@ -69,7 +71,8 @@ export const getFamilyRelationships = async (familyTreeId: string) => {
     
     const cypher = `
       MATCH (u1:User {familyTreeId: $familyTreeId})-[r]->(u2:User {familyTreeId: $familyTreeId})
-      RETURN u1.userId AS source, u2.userId AS target, type(r) AS type
+      RETURN u1.userId AS source, u2.userId AS target, type(r) AS type, 
+             u1.name AS sourceName, u2.name AS targetName
     `;
     
     const result = await runQuery(cypher, { familyTreeId });
@@ -78,7 +81,9 @@ export const getFamilyRelationships = async (familyTreeId: string) => {
     return result.map(record => ({
       source: record.source,
       target: record.target,
-      type: record.type.toLowerCase()
+      type: record.type.toLowerCase(),
+      sourceName: record.sourceName,
+      targetName: record.targetName
     }));
   } catch (error) {
     console.error("Error fetching family relationships:", error);
@@ -92,8 +97,14 @@ export const createReciprocalRelationship = async (familyTreeId: string, userId1
     const cypher = `
       MATCH (u1:User {familyTreeId: $familyTreeId, userId: $userId1})
       MATCH (u2:User {familyTreeId: $familyTreeId, userId: $userId2})
-      MERGE (u1)-[r1:${relationship1.toUpperCase()}]->(u2)
-      MERGE (u2)-[r2:${relationship2.toUpperCase()}]->(u1)
+      // First clear any existing relationships to avoid duplicates
+      OPTIONAL MATCH (u1)-[r1]->(u2)
+      OPTIONAL MATCH (u2)-[r2]->(u1)
+      DELETE r1, r2
+      // Now create the new relationships
+      WITH u1, u2
+      CREATE (u1)-[r1:${relationship1.toUpperCase()}]->(u2)
+      CREATE (u2)-[r2:${relationship2.toUpperCase()}]->(u1)
       RETURN type(r1) as rel1, type(r2) as rel2
     `;
     
@@ -117,7 +128,7 @@ export const getFamilyTreeVisualizationData = async (familyTreeId: string) => {
       MATCH (u:User {familyTreeId: $familyTreeId})
       OPTIONAL MATCH (u)-[r]->(other:User {familyTreeId: $familyTreeId})
       RETURN u.userId AS id, u.name AS name, u.status AS status, u.myRelationship AS myRelationship,
-             collect({target: other.userId, type: type(r)}) AS relationships
+             u.profilePicture AS profilePicture, collect({target: other.userId, type: type(r)}) AS relationships
     `;
     
     const result = await runQuery(cypher, { familyTreeId });
@@ -127,7 +138,8 @@ export const getFamilyTreeVisualizationData = async (familyTreeId: string) => {
       id: record.id,
       name: record.name,
       status: record.status,
-      myRelationship: record.myRelationship
+      myRelationship: record.myRelationship,
+      profilePicture: record.profilePicture
     }));
     
     // Extract all relationships

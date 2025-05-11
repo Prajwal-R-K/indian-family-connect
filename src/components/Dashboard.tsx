@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import FamilyTreeVisualization from "./FamilyTreeVisualization";
 import { getFamilyMembers, getFamilyRelationships } from "@/lib/neo4j/family-tree";
+import { getUserRelationships } from "@/lib/neo4j/relationships";
 
 interface DashboardProps {
   user: User;
@@ -18,6 +19,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const navigate = useNavigate();
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [relationships, setRelationships] = useState<any[]>([]);
+  const [userRelationships, setUserRelationships] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [invitationCount, setInvitationCount] = useState(0);
   const [showAllMembers, setShowAllMembers] = useState(false);
@@ -26,16 +28,28 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     const loadFamilyData = async () => {
       try {
         setLoading(true);
-        // Load family members and relationships
+        console.log("Loading family data for user:", user.userId, "in tree:", user.familyTreeId);
+        
+        // Load family members
         const members = await getFamilyMembers(user.familyTreeId);
+        console.log("Loaded family members:", members);
         setFamilyMembers(members);
         
+        // Load all relationships in the family tree
         const relations = await getFamilyRelationships(user.familyTreeId);
+        console.log("Loaded family relationships:", relations);
         setRelationships(relations);
         
         // Count pending invitations
         const pendingInvites = members.filter(member => member.status === 'invited').length;
         setInvitationCount(pendingInvites);
+        
+        // Load current user's specific relationships
+        if (user.email) {
+          const userRels = await getUserRelationships(user.email, user.familyTreeId);
+          console.log("Loaded user relationships:", userRels);
+          setUserRelationships(userRels);
+        }
       } catch (error) {
         console.error("Error loading family members:", error);
         toast({
@@ -49,7 +63,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     };
     
     loadFamilyData();
-  }, [user.familyTreeId]);
+  }, [user.familyTreeId, user.userId, user.email]);
   
   // Get first letter of first and last name for avatar
   const getNameInitials = (name: string) => {
@@ -93,14 +107,26 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   
   // Get relationship description between current user and another member
   const getRelationship = (memberId: string) => {
-    const rel = relationships.find(r => r.source === user.userId && r.target === memberId);
-    if (rel) {
-      return rel.type.charAt(0).toUpperCase() + rel.type.slice(1);
+    // Try to find a direct relationship from current user to this member
+    const directRel = relationships.find(r => 
+      r.source === user.userId && r.target === memberId
+    );
+    if (directRel) {
+      return directRel.type.charAt(0).toUpperCase() + directRel.type.slice(1);
     }
     
-    const reverseRel = relationships.find(r => r.target === user.userId && r.source === memberId);
+    // Try to find a reverse relationship from this member to current user
+    const reverseRel = relationships.find(r => 
+      r.target === user.userId && r.source === memberId
+    );
     if (reverseRel) {
       return `${reverseRel.type.charAt(0).toUpperCase() + reverseRel.type.slice(1)} of`;
+    }
+    
+    // Find the member by ID
+    const member = familyMembers.find(m => m.userId === memberId);
+    if (member?.myRelationship) {
+      return member.myRelationship;
     }
     
     return "Family member";
@@ -193,19 +219,27 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         
         <Card className="border-l-4 border-l-isn-accent">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Find Family</CardTitle>
-            <CardDescription>Search for other trees</CardDescription>
+            <CardTitle className="text-lg">Relationships</CardTitle>
+            <CardDescription>Family connections</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              className="w-full flex items-center gap-1"
-              onClick={handleSearch}
-            >
-              <Search className="h-4 w-4" />
-              <span>Search</span>
-            </Button>
+            <div className="flex justify-between items-center">
+              <span className="text-2xl font-bold">{relationships.length}</span>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="flex items-center gap-1"
+                onClick={() => {
+                  toast({
+                    title: "Relationships",
+                    description: "You have connections with " + userRelationships.length + " family members.",
+                  });
+                }}
+              >
+                <Network className="h-4 w-4" />
+                <span>View</span>
+              </Button>
+            </div>
           </CardContent>
         </Card>
         
@@ -265,13 +299,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">Recent Activities</CardTitle>
-            <CardDescription>Latest updates in your family network</CardDescription>
+            <CardTitle className="text-xl">Family Relationships</CardTitle>
+            <CardDescription>Connections between family members</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="max-h-[300px] overflow-y-auto">
             {relationships.length > 0 ? (
               <div className="space-y-3">
-                {relationships.slice(0, 5).map((rel, idx) => {
+                {relationships.slice(0, 10).map((rel, idx) => {
                   const source = familyMembers.find(m => m.userId === rel.source)?.name || "Someone";
                   const target = familyMembers.find(m => m.userId === rel.target)?.name || "someone";
                   return (
@@ -284,10 +318,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                     </div>
                   );
                 })}
+                {relationships.length > 10 && (
+                  <div className="text-center text-xs text-gray-500 mt-2">
+                    + {relationships.length - 10} more relationships
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center text-gray-500 py-8">
-                <p>No recent activities</p>
+                <p>No relationships yet</p>
+                <p className="text-xs mt-1">Invite family members to create connections</p>
               </div>
             )}
           </CardContent>

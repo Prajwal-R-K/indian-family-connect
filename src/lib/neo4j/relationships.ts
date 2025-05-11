@@ -48,15 +48,27 @@ export const updateBidirectionalRelationship = async (
   targetRelationship: string
 ): Promise<boolean> => {
   try {
+    // Clear console for debugging
+    console.log(`Creating bidirectional relationship between ${sourceEmail} and ${targetEmail}`);
+    console.log(`${sourceEmail} is ${sourceRelationship} to ${targetEmail}`);
+    console.log(`${targetEmail} is ${targetRelationship} to ${sourceEmail}`);
+    
     const cypher = `
       MATCH (source:User {email: $sourceEmail})
       MATCH (target:User {email: $targetEmail})
-      MERGE (source)-[r1:${sourceRelationship.toUpperCase()}]->(target)
-      MERGE (target)-[r2:${targetRelationship.toUpperCase()}]->(source)
+      // First clear any existing relationships in both directions to avoid duplicates
+      OPTIONAL MATCH (source)-[r1]->(target)
+      OPTIONAL MATCH (target)-[r2]->(source)
+      DELETE r1, r2
+      // Now create the new relationships
+      WITH source, target
+      CREATE (source)-[r1:${sourceRelationship.toUpperCase()}]->(target)
+      CREATE (target)-[r2:${targetRelationship.toUpperCase()}]->(source)
       RETURN type(r1) as sourceRel, type(r2) as targetRel
     `;
     
     const result = await runQuery(cypher, { sourceEmail, targetEmail });
+    console.log("Bidirectional relationship result:", result);
     return result && result.length > 0;
   } catch (error) {
     console.error("Error creating bidirectional relationship:", error);
@@ -124,7 +136,7 @@ export const createReciprocateRelationships = async (
     // Get the appropriate relationship type from inviter to user
     const inviterRelationship = getOppositeRelationship(userRelationship);
     
-    // Create both directional relationships
+    // Clear any existing relationships first then create both directional relationships
     await updateBidirectionalRelationship(
       user.email,
       inviterEmail,
@@ -140,5 +152,29 @@ export const createReciprocateRelationships = async (
   } catch (error) {
     console.error("Error creating reciprocal relationships:", error);
     return false;
+  }
+};
+
+// Get all relationships for a user in a family tree
+export const getUserRelationships = async (email: string, familyTreeId: string): Promise<Relationship[]> => {
+  try {
+    console.log(`Getting relationships for user ${email} in family tree ${familyTreeId}`);
+    const cypher = `
+      MATCH (u:User {email: $email, familyTreeId: $familyTreeId})-[r]->(relative:User {familyTreeId: $familyTreeId})
+      RETURN type(r) as type, u.email as from, relative.email as to, u.userId as fromUserId
+    `;
+    
+    const result = await runQuery(cypher, { email, familyTreeId });
+    console.log(`Found ${result.length} relationships for user ${email}`);
+    
+    return result.map((rel: any) => ({
+      from: rel.from,
+      to: rel.to,
+      type: rel.type.toLowerCase(),
+      fromUserId: rel.fromUserId
+    }));
+  } catch (error) {
+    console.error(`Error getting relationships for user ${email}:`, error);
+    return [];
   }
 };

@@ -12,12 +12,15 @@ interface FamilyMember {
   status: string;
   relationship?: string;
   createdBy?: string;
+  profilePicture?: string;
 }
 
 interface Relationship {
   source: string;
   target: string;
   type: string;
+  sourceName?: string;
+  targetName?: string;
 }
 
 interface FamilyTreeVisualizationProps {
@@ -36,6 +39,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user,
       try {
         if (user.familyTreeId) {
           const relations = await getFamilyRelationships(user.familyTreeId);
+          console.log("Fetched relationships for visualization:", relations);
           setRelationships(relations);
         }
       } catch (error) {
@@ -51,7 +55,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user,
   useEffect(() => {
     if (!canvasRef.current || isLoading) return;
     
-    // Simple force-directed graph rendering
+    // Force-directed graph rendering
     const renderFamilyTree = () => {
       const container = canvasRef.current;
       if (!container) return;
@@ -59,167 +63,186 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user,
       // Clear previous content
       container.innerHTML = '';
       
-      // Create elements for visualization
-      const nodes: HTMLElement[] = [];
-      const relationshipConnections: { source: HTMLElement, target: HTMLElement, type: string }[] = [];
+      // Create SVG container
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("width", "100%");
+      svg.setAttribute("height", "100%");
+      svg.classList.add("family-tree-svg");
+      container.appendChild(svg);
+      
+      // Graph simulation variables
+      const nodeRadius = 35;
+      const containerRect = container.getBoundingClientRect();
+      const width = containerRect.width;
+      const height = containerRect.height;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      
+      // Create nodes for all family members
+      const nodeElements: Record<string, SVGElement> = {};
+      const nodePositions: Record<string, {x: number, y: number}> = {};
       
       // Add the current user as the central node
-      const centralNode = document.createElement('div');
-      centralNode.className = 'absolute p-2 bg-isn-primary text-white rounded-full flex flex-col items-center transform -translate-x-1/2 -translate-y-1/2';
-      centralNode.style.left = '50%';
-      centralNode.style.top = '50%';
-      centralNode.style.zIndex = '10';
-      centralNode.dataset.userId = user.userId;
-      
-      const centralAvatar = document.createElement('div');
-      centralAvatar.className = 'w-12 h-12 rounded-full flex items-center justify-center text-white font-bold bg-isn-primary border-2 border-white';
-      centralAvatar.textContent = getInitials(user.name);
-      
-      const centralName = document.createElement('div');
-      centralName.className = 'mt-1 text-xs font-medium bg-white text-isn-primary px-2 py-1 rounded-full';
-      centralName.textContent = user.name;
-      
-      centralNode.appendChild(centralAvatar);
-      centralNode.appendChild(centralName);
-      container.appendChild(centralNode);
-      nodes.push(centralNode);
-      
-      // Create a map for quick lookup of HTML nodes by userId
-      const nodeMap: Record<string, HTMLElement> = {
-        [user.userId]: centralNode
-      };
-      
-      // Add family members as nodes around the central user
       familyMembers.forEach((member, index) => {
-        if (member.email === user.email) return; // Skip the current user
+        // Calculate initial positions in a circle
+        const angle = (2 * Math.PI * index) / (familyMembers.length || 1);
+        const radius = Math.min(width, height) * 0.35; // Adjust as needed
+        const x = centerX + radius * Math.cos(angle);
+        const y = centerY + radius * Math.sin(angle);
         
-        // Calculate position in a circle around the central node
-        const angle = (2 * Math.PI * index) / familyMembers.length;
-        const radius = 130; // Adjust this value to change the distance from center
-        const x = 50 + radius * Math.cos(angle);
-        const y = 50 + radius * Math.sin(angle);
+        // Store position
+        nodePositions[member.userId] = {x, y};
         
-        const memberNode = document.createElement('div');
-        memberNode.className = 'absolute p-2 flex flex-col items-center transform -translate-x-1/2 -translate-y-1/2';
-        memberNode.style.left = `${x}%`;
-        memberNode.style.top = `${y}%`;
-        memberNode.dataset.userId = member.userId;
+        // Create group for node
+        const nodeGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        nodeGroup.setAttribute("transform", `translate(${x}, ${y})`);
+        nodeGroup.dataset.userId = member.userId;
         
-        const memberAvatar = document.createElement('div');
-        memberAvatar.className = 'w-10 h-10 rounded-full flex items-center justify-center bg-isn-secondary text-white font-bold border-2 border-white';
-        memberAvatar.textContent = getInitials(member.name);
+        // Create circle
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("r", `${nodeRadius}`);
+        circle.setAttribute("fill", member.userId === user.userId ? "#6366f1" : "#9ca3af");
+        circle.setAttribute("stroke", "#ffffff");
+        circle.setAttribute("stroke-width", "3");
+        nodeGroup.appendChild(circle);
         
-        const memberName = document.createElement('div');
-        memberName.className = 'mt-1 text-xs font-medium bg-white text-isn-dark px-2 py-1 rounded-full shadow';
-        memberName.textContent = member.name;
+        // Create text for initials
+        const initials = getInitials(member.name);
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.textContent = initials;
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("dominant-baseline", "central");
+        text.setAttribute("fill", "white");
+        text.setAttribute("font-weight", "bold");
+        nodeGroup.appendChild(text);
         
-        const relationshipLabel = document.createElement('div');
-        relationshipLabel.className = 'text-[10px] text-isn-secondary font-medium';
-        relationshipLabel.textContent = member.relationship || 'Family Member';
+        // Create text background for name
+        const nameBackground = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        nameBackground.setAttribute("y", `${nodeRadius + 5}`);
+        nameBackground.setAttribute("height", "20");
+        nameBackground.setAttribute("rx", "10");
+        nameBackground.setAttribute("ry", "10");
+        nameBackground.setAttribute("fill", "white");
+        nameBackground.setAttribute("stroke", "#e5e7eb");
+        nameBackground.setAttribute("stroke-width", "1");
         
-        memberNode.appendChild(memberAvatar);
-        memberNode.appendChild(memberName);
-        memberNode.appendChild(relationshipLabel);
-        container.appendChild(memberNode);
-        nodes.push(memberNode);
-        nodeMap[member.userId] = memberNode;
+        // Create text for name
+        const nameText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        nameText.textContent = member.name;
+        nameText.setAttribute("y", `${nodeRadius + 15}`);
+        nameText.setAttribute("text-anchor", "middle");
+        nameText.setAttribute("font-size", "12");
+        nameText.setAttribute("fill", "#374151");
+        
+        // Calculate width based on text
+        const nameWidth = Math.max(member.name.length * 7, 60);
+        nameBackground.setAttribute("width", `${nameWidth}`);
+        nameBackground.setAttribute("x", `-${nameWidth / 2}`);
+        
+        nodeGroup.appendChild(nameBackground);
+        nodeGroup.appendChild(nameText);
+        
+        // Store node reference
+        nodeElements[member.userId] = nodeGroup;
+        svg.appendChild(nodeGroup);
       });
       
-      // Draw relationship lines
-      relationships.forEach((rel) => {
-        const sourceNode = nodeMap[rel.source];
-        const targetNode = nodeMap[rel.target];
-        
-        // Only draw line if both nodes exist
-        if (sourceNode && targetNode) {
-          const line = document.createElement('div');
-          line.className = 'absolute border-t-2 border-dashed border-isn-secondary';
-          line.style.zIndex = '1';
-          container.appendChild(line);
+      // Draw edges (relationships)
+      relationships.forEach(rel => {
+        if (nodeElements[rel.source] && nodeElements[rel.target]) {
+          // Create line
+          const sourcePos = nodePositions[rel.source];
+          const targetPos = nodePositions[rel.target];
           
-          // Calculate line position and angle
-          const updateLine = () => {
-            const sourceRect = sourceNode.getBoundingClientRect();
-            const targetRect = targetNode.getBoundingClientRect();
-            const containerRect = container.getBoundingClientRect();
-            
-            // Source and target centers relative to container
-            const sourceX = (sourceRect.left + sourceRect.width / 2) - containerRect.left;
-            const sourceY = (sourceRect.top + sourceRect.height / 2) - containerRect.top;
-            const targetX = (targetRect.left + targetRect.width / 2) - containerRect.left;
-            const targetY = (targetRect.top + targetRect.height / 2) - containerRect.top;
-            
-            // Distance between centers
-            const dx = targetX - sourceX;
-            const dy = targetY - sourceY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            // Angle in radians
-            const angle = Math.atan2(dy, dx);
-            
-            // Position line to connect the two nodes
-            line.style.width = `${distance}px`;
-            line.style.left = `${sourceX}px`;
-            line.style.top = `${sourceY}px`;
-            line.style.transform = `rotate(${angle}rad)`;
-            
-            // Add relationship type as a tooltip
-            line.title = rel.type;
-          };
+          if (!sourcePos || !targetPos) return;
           
-          // Initial positioning
-          updateLine();
+          // Calculate direction vector
+          const dx = targetPos.x - sourcePos.x;
+          const dy = targetPos.y - sourcePos.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
           
-          // Create relationship label
-          const relLabel = document.createElement('div');
-          relLabel.className = 'absolute text-[9px] px-1 bg-white border border-isn-secondary rounded-full text-isn-secondary z-10';
-          relLabel.textContent = rel.type;
-          container.appendChild(relLabel);
+          // Normalize
+          const nx = dx / dist;
+          const ny = dy / dist;
           
-          // Position relationship label
-          const sourceRect = sourceNode.getBoundingClientRect();
-          const targetRect = targetNode.getBoundingClientRect();
-          const containerRect = container.getBoundingClientRect();
+          // Start and end points (adjusted for node radius)
+          const startX = sourcePos.x + nx * nodeRadius;
+          const startY = sourcePos.y + ny * nodeRadius;
+          const endX = targetPos.x - nx * nodeRadius;
+          const endY = targetPos.y - ny * nodeRadius;
           
-          const sourceCenterX = (sourceRect.left + sourceRect.width / 2) - containerRect.left;
-          const sourceCenterY = (sourceRect.top + sourceRect.height / 2) - containerRect.top;
-          const targetCenterX = (targetRect.left + targetRect.width / 2) - containerRect.left;
-          const targetCenterY = (targetRect.top + targetRect.height / 2) - containerRect.top;
+          // Create line element
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute("x1", `${startX}`);
+          line.setAttribute("y1", `${startY}`);
+          line.setAttribute("x2", `${endX}`);
+          line.setAttribute("y2", `${endY}`);
+          line.setAttribute("stroke", "#6366f1");
+          line.setAttribute("stroke-width", "2");
+          line.setAttribute("stroke-dasharray", "4");
+          line.setAttribute("marker-end", "url(#arrowhead)");
           
-          relLabel.style.left = `${sourceCenterX + (targetCenterX - sourceCenterX) * 0.4}px`;
-          relLabel.style.top = `${sourceCenterY + (targetCenterY - sourceCenterY) * 0.4}px`;
-          relLabel.style.transform = 'translate(-50%, -50%)';
+          // Insert line BEFORE nodes so they appear on top
+          svg.insertBefore(line, svg.firstChild);
           
-          // Store for updates on resize
-          relationshipConnections.push({
-            source: sourceNode,
-            target: targetNode,
-            type: rel.type
-          });
+          // Create text element for relationship type
+          const midX = (startX + endX) / 2;
+          const midY = (startY + endY) / 2;
+          
+          // Create background for label
+          const textBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          textBg.setAttribute("rx", "8");
+          textBg.setAttribute("ry", "8");
+          textBg.setAttribute("fill", "white");
+          textBg.setAttribute("stroke", "#e5e7eb");
+          
+          // Create text element
+          const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          text.textContent = rel.type;
+          text.setAttribute("x", `${midX}`);
+          text.setAttribute("y", `${midY}`);
+          text.setAttribute("text-anchor", "middle");
+          text.setAttribute("dominant-baseline", "central");
+          text.setAttribute("font-size", "10");
+          text.setAttribute("fill", "#4b5563");
+          text.setAttribute("paint-order", "stroke");
+          text.setAttribute("stroke", "white");
+          text.setAttribute("stroke-width", "5");
+          
+          // Calculate background dimensions
+          const padding = 6;
+          const bgWidth = rel.type.length * 6 + padding * 2;
+          const bgHeight = 16;
+          
+          textBg.setAttribute("x", `${midX - bgWidth/2}`);
+          textBg.setAttribute("y", `${midY - bgHeight/2}`);
+          textBg.setAttribute("width", `${bgWidth}`);
+          textBg.setAttribute("height", `${bgHeight}`);
+          
+          // Add elements to SVG
+          svg.appendChild(textBg);
+          svg.appendChild(text);
         }
       });
       
-      // Update lines on window resize
-      const handleResize = () => {
-        relationshipConnections.forEach(conn => {
-          // Recalculate positions when window is resized
-          const sourceRect = conn.source.getBoundingClientRect();
-          const targetRect = conn.target.getBoundingClientRect();
-          const containerRect = container.getBoundingClientRect();
-          
-          // Source and target centers relative to container
-          const sourceX = (sourceRect.left + sourceRect.width / 2) - containerRect.left;
-          const sourceY = (sourceRect.top + sourceRect.height / 2) - containerRect.top;
-          const targetX = (targetRect.left + targetRect.width / 2) - containerRect.left;
-          const targetY = (targetRect.top + targetRect.height / 2) - containerRect.top;
-          
-          // Distance and angle calculations
-          // ... code to update line positions
-        });
-      };
+      // Add arrowhead marker definition
+      const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+      const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+      marker.setAttribute("id", "arrowhead");
+      marker.setAttribute("viewBox", "0 0 10 10");
+      marker.setAttribute("refX", "5");
+      marker.setAttribute("refY", "5");
+      marker.setAttribute("markerWidth", "6");
+      marker.setAttribute("markerHeight", "6");
+      marker.setAttribute("orient", "auto");
       
-      // Add resize listener
-      window.addEventListener('resize', handleResize);
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
+      path.setAttribute("fill", "#6366f1");
+      
+      marker.appendChild(path);
+      defs.appendChild(marker);
+      svg.insertBefore(defs, svg.firstChild);
     };
     
     renderFamilyTree();
@@ -256,7 +279,11 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user,
           <p className="text-gray-500">No family members yet</p>
           <p className="text-sm text-gray-400">Invite family members to see your tree</p>
         </div>
-      ) : null}
+      ) : (
+        <div className="absolute top-0 right-0 p-2 text-xs text-gray-500">
+          {relationships.length} relationships found
+        </div>
+      )}
     </div>
   );
 };
