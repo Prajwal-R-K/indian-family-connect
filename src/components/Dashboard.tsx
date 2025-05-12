@@ -7,7 +7,7 @@ import { Plus, Users, Search, Mail, Network } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import FamilyTreeVisualization from "./FamilyTreeVisualization";
-import { getFamilyMembers, getFamilyRelationships, getUserPersonalFamilyView } from "@/lib/neo4j/family-tree";
+import { getFamilyMembers, getFamilyRelationships } from "@/lib/neo4j/family-tree";
 import { getUserRelationships, getUserPersonalizedFamilyTree } from "@/lib/neo4j/relationships";
 
 interface DashboardProps {
@@ -31,10 +31,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         setLoading(true);
         console.log("Loading family data for user:", user.userId, "in tree:", user.familyTreeId);
         
-        // Load family members
+        // Load family members - now ensuring uniqueness by userId
         const members = await getFamilyMembers(user.familyTreeId);
         console.log("Loaded family members:", members);
-        setFamilyMembers(members);
+        
+        // Make sure we have unique members based on userId
+        const uniqueMembers = removeDuplicateMembers(members);
+        setFamilyMembers(uniqueMembers);
         
         // Load all relationships in the family tree
         const relations = await getFamilyRelationships(user.familyTreeId);
@@ -42,7 +45,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         setRelationships(relations);
         
         // Count pending invitations
-        const pendingInvites = members.filter(member => member.status === 'invited').length;
+        const pendingInvites = uniqueMembers.filter(member => member.status === 'invited').length;
         setInvitationCount(pendingInvites);
         
         // Load current user's specific relationships
@@ -71,6 +74,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     
     loadFamilyData();
   }, [user.familyTreeId, user.userId, user.email]);
+  
+  // Helper function to remove duplicate members
+  const removeDuplicateMembers = (members: any[]): any[] => {
+    const uniqueMap = new Map();
+    members.forEach(member => {
+      // Only keep the latest/most complete version of each member
+      if (!uniqueMap.has(member.userId) || 
+          member.status === 'active' || 
+          (uniqueMap.get(member.userId).status !== 'active')) {
+        uniqueMap.set(member.userId, member);
+      }
+    });
+    return Array.from(uniqueMap.values());
+  };
   
   // Get first letter of first and last name for avatar
   const getNameInitials = (name: string) => {
@@ -198,7 +215,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             {showAllMembers && familyMembers.length > 0 && (
               <div className="mt-4 space-y-2 max-h-40 overflow-y-auto pr-2">
                 {familyMembers.map((member) => (
-                  <div key={member.userId} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
+                  <div key={`member-${member.userId}`} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
                     <Avatar className="h-6 w-6">
                       <AvatarFallback className={`text-xs ${member.status === 'invited' ? 'bg-yellow-500' : 'bg-isn-secondary'}`}>
                         {getNameInitials(member.name)}
@@ -349,7 +366,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                   {personalizedView.slice(0, 10).map((rel, idx) => {
                     const target = familyMembers.find(m => m.userId === rel.target)?.name || "someone";
                     return (
-                      <div key={idx} className="flex items-start gap-2">
+                      <div key={`personal-rel-${idx}`} className="flex items-start gap-2">
                         <div className="w-2 h-2 mt-2 rounded-full bg-isn-primary"></div>
                         <p className="text-sm">
                           <span className="font-medium">You</span> see {target} as your{" "}
@@ -377,7 +394,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                     const source = familyMembers.find(m => m.userId === rel.source)?.name || "Someone";
                     const target = familyMembers.find(m => m.userId === rel.target)?.name || "someone";
                     return (
-                      <div key={idx} className="flex items-start gap-2">
+                      <div key={`all-rel-${idx}`} className="flex items-start gap-2">
                         <div className="w-2 h-2 mt-2 rounded-full bg-isn-primary"></div>
                         <p className="text-sm">
                           <span className="font-medium">{source}</span> is {rel.type} of{" "}

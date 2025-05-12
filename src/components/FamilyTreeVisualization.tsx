@@ -1,11 +1,12 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { User } from '@/types';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getFamilyRelationships } from '@/lib/neo4j/family-tree';
 import { getUserPersonalizedFamilyTree } from '@/lib/neo4j/relationships';
 import { toast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface FamilyMember {
   userId: string;
@@ -40,6 +41,16 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
+  const [nodeDetailsOpen, setNodeDetailsOpen] = useState(false);
+  const [relationshipDetailsOpen, setRelationshipDetailsOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
+  const [selectedRelationship, setSelectedRelationship] = useState<{
+    from: FamilyMember | null;
+    to: FamilyMember | null;
+    fromToRelation: string;
+    toFromRelation: string;
+  } | null>(null);
 
   useEffect(() => {
     // Fetch user-specific relationship data based on viewMode
@@ -86,8 +97,71 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     return Array.from(uniqueMap.values());
   };
 
+  // Function to find relationship between two nodes
+  const findRelationshipBetweenNodes = (sourceId: string, targetId: string) => {
+    // Get forward relationship
+    const forwardRel = relationships.find(rel => 
+      rel.source === sourceId && rel.target === targetId
+    );
+    
+    // Get reverse relationship
+    const reverseRel = relationships.find(rel => 
+      rel.source === targetId && rel.target === sourceId
+    );
+    
+    const sourceMember = familyMembers.find(m => m.userId === sourceId);
+    const targetMember = familyMembers.find(m => m.userId === targetId);
+    
+    if (sourceMember && targetMember) {
+      setSelectedRelationship({
+        from: sourceMember,
+        to: targetMember,
+        fromToRelation: forwardRel?.type || "No direct relationship",
+        toFromRelation: reverseRel?.type || "No direct relationship"
+      });
+      setRelationshipDetailsOpen(true);
+    }
+  };
+
+  // Function to handle node click
+  const handleNodeClick = (userId: string) => {
+    // If we already have 2 nodes selected, reset the selection
+    if (selectedNodes.length >= 2) {
+      setSelectedNodes([userId]);
+    } 
+    // If we have 1 node selected and it's not the same node
+    else if (selectedNodes.length === 1 && selectedNodes[0] !== userId) {
+      setSelectedNodes([...selectedNodes, userId]);
+      // Find relationship between these two nodes
+      findRelationshipBetweenNodes(selectedNodes[0], userId);
+    }
+    // If it's the first node or same node clicked
+    else {
+      // Toggle node selection
+      if (selectedNodes.includes(userId)) {
+        setSelectedNodes(selectedNodes.filter(id => id !== userId));
+      } else {
+        setSelectedNodes([...selectedNodes, userId]);
+      }
+      
+      // Show node details for single node
+      const member = familyMembers.find(m => m.userId === userId);
+      if (member) {
+        setSelectedMember(member);
+        setNodeDetailsOpen(true);
+      }
+    }
+  };
+
   useEffect(() => {
     if (!canvasRef.current || isLoading) return;
+    
+    // Unique set of members based on userId
+    const uniqueMemberIds = new Set<string>();
+    familyMembers.forEach(member => uniqueMemberIds.add(member.userId));
+    const uniqueMembers = Array.from(uniqueMemberIds).map(id => 
+      familyMembers.find(member => member.userId === id)
+    ).filter(Boolean) as FamilyMember[];
     
     // Force-directed graph rendering
     const renderFamilyTree = () => {
@@ -112,21 +186,14 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       const centerX = width / 2;
       const centerY = height / 2;
       
-      // Create a unique set of member IDs from both familyMembers and relationships
-      const uniqueMemberIds = new Set<string>();
-      familyMembers.forEach(member => uniqueMemberIds.add(member.userId));
-      
       // Create nodes for all unique members
       const nodeElements: Record<string, SVGElement> = {};
       const nodePositions: Record<string, {x: number, y: number}> = {};
       
-      // Collect unique nodes
-      const uniqueMembers = familyMembers.filter(member => 
-        uniqueMemberIds.has(member.userId)
-      );
-      
       // Add nodes for all unique family members including current user
       uniqueMembers.forEach((member, index) => {
+        if (!member) return; // Skip null/undefined members
+        
         // Calculate initial positions in a circle
         const angle = (2 * Math.PI * index) / (uniqueMembers.length || 1);
         const radius = Math.min(width, height) * 0.35; // Adjust as needed
@@ -143,20 +210,29 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         
         // Add click event to display node details
         nodeGroup.addEventListener('click', () => {
-          setSelectedNode(member.userId);
-          toast({
-            title: member.name,
-            description: `Email: ${member.email}\nStatus: ${member.status}`,
-          });
+          handleNodeClick(member.userId);
         });
         
-        // Create circle
+        // Create circle with different style if selected
         const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         circle.setAttribute("r", `${nodeRadius}`);
-        circle.setAttribute("fill", member.userId === user.userId ? "#6366f1" : "#9ca3af");
-        circle.setAttribute("stroke", "#ffffff");
-        circle.setAttribute("stroke-width", "3");
+        
+        // Determine node color based on status and selection
+        let fillColor = "#9ca3af"; // Default gray
+        
+        if (member.userId === user.userId) {
+          fillColor = "#6366f1"; // Current user color
+        }
+        
+        if (selectedNodes.includes(member.userId)) {
+          fillColor = "#10b981"; // Selected node is green
+        }
+        
+        circle.setAttribute("fill", fillColor);
+        circle.setAttribute("stroke", selectedNodes.includes(member.userId) ? "#047857" : "#ffffff");
+        circle.setAttribute("stroke-width", selectedNodes.includes(member.userId) ? "4" : "3");
         circle.style.cursor = "pointer";
+        
         nodeGroup.appendChild(circle);
         
         // Create text for initials
@@ -226,15 +302,20 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
           const endX = targetPos.x - nx * nodeRadius;
           const endY = targetPos.y - ny * nodeRadius;
           
+          // Determine if this is a selected edge
+          const isSelectedEdge = 
+            (selectedNodes.includes(rel.source) && selectedNodes.includes(rel.target)) ||
+            (selectedNodes.includes(rel.target) && selectedNodes.includes(rel.source));
+          
           // Create line element
           const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
           line.setAttribute("x1", `${startX}`);
           line.setAttribute("y1", `${startY}`);
           line.setAttribute("x2", `${endX}`);
           line.setAttribute("y2", `${endY}`);
-          line.setAttribute("stroke", "#6366f1");
-          line.setAttribute("stroke-width", "2");
-          line.setAttribute("stroke-dasharray", "4");
+          line.setAttribute("stroke", isSelectedEdge ? "#10b981" : "#6366f1");
+          line.setAttribute("stroke-width", isSelectedEdge ? "3" : "2");
+          line.setAttribute("stroke-dasharray", isSelectedEdge ? "" : "4");
           line.setAttribute("marker-end", "url(#arrowhead)");
           
           // Insert line BEFORE nodes so they appear on top
@@ -248,8 +329,8 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
           const textBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
           textBg.setAttribute("rx", "8");
           textBg.setAttribute("ry", "8");
-          textBg.setAttribute("fill", "white");
-          textBg.setAttribute("stroke", "#e5e7eb");
+          textBg.setAttribute("fill", isSelectedEdge ? "#d1fae5" : "white");
+          textBg.setAttribute("stroke", isSelectedEdge ? "#10b981" : "#e5e7eb");
           
           // Create text element
           const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -259,9 +340,9 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
           text.setAttribute("text-anchor", "middle");
           text.setAttribute("dominant-baseline", "central");
           text.setAttribute("font-size", "10");
-          text.setAttribute("fill", "#4b5563");
+          text.setAttribute("fill", isSelectedEdge ? "#047857" : "#4b5563");
           text.setAttribute("paint-order", "stroke");
-          text.setAttribute("stroke", "white");
+          text.setAttribute("stroke", isSelectedEdge ? "#d1fae5" : "white");
           text.setAttribute("stroke-width", "5");
           
           // Calculate background dimensions
@@ -298,6 +379,15 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       marker.appendChild(path);
       defs.appendChild(marker);
       svg.insertBefore(defs, svg.firstChild);
+      
+      // Add instructions
+      const instructionText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      instructionText.textContent = "Click on a node to view details, or select two nodes to see their relationship";
+      instructionText.setAttribute("x", "10");
+      instructionText.setAttribute("y", "20");
+      instructionText.setAttribute("font-size", "10");
+      instructionText.setAttribute("fill", "#6b7280");
+      svg.appendChild(instructionText);
     };
     
     renderFamilyTree();
@@ -311,7 +401,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     return () => {
       window.removeEventListener('resize', resizeHandler);
     };
-  }, [user, familyMembers, relationships, isLoading, viewMode, selectedNode]);
+  }, [user, familyMembers, relationships, isLoading, viewMode, selectedNode, selectedNodes]);
   
   // Get initials from name
   const getInitials = (name: string) => {
@@ -339,6 +429,109 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
           {viewMode === 'personal' ? 'Personal view' : 'All relationships'}: {relationships.length} relationships found
         </div>
       )}
+      
+      {/* Node Details Dialog */}
+      <Dialog open={nodeDetailsOpen} onOpenChange={setNodeDetailsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Member Details</DialogTitle>
+            <DialogDescription>
+              Personal information for this family member
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedMember && (
+            <div className="space-y-4">
+              <div className="flex items-center space-x-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarFallback className="bg-isn-primary text-white">
+                    {getInitials(selectedMember.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedMember.name}</h3>
+                  <p className="text-sm text-gray-500">{selectedMember.email}</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <div className="text-sm">
+                  <span className="font-medium">Status:</span> 
+                  <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                    selectedMember.status === 'active' ? 'bg-green-100 text-green-800' : 
+                    selectedMember.status === 'invited' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
+                  }`}>{selectedMember.status}</span>
+                </div>
+                
+                {selectedMember.userId === user.userId && (
+                  <div className="text-sm">
+                    <span className="font-medium">This is you</span>
+                  </div>
+                )}
+                
+                <div className="text-sm">
+                  <span className="font-medium">Member ID:</span> 
+                  <span className="ml-2 text-gray-600">{selectedMember.userId}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Relationship Details Dialog */}
+      <Dialog open={relationshipDetailsOpen} onOpenChange={setRelationshipDetailsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Relationship Details</DialogTitle>
+            <DialogDescription>
+              How these family members are related to each other
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedRelationship && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="text-center">
+                  <Avatar className="h-12 w-12 mx-auto">
+                    <AvatarFallback className="bg-isn-primary text-white">
+                      {getInitials(selectedRelationship.from?.name || '')}
+                    </AvatarFallback>
+                  </Avatar>
+                  <p className="mt-2 text-sm font-medium">{selectedRelationship.from?.name}</p>
+                </div>
+                
+                <div className="flex flex-col items-center px-4">
+                  <div className="text-xs bg-gray-100 rounded-full px-3 py-1 mb-1">is {selectedRelationship.fromToRelation} of</div>
+                  <div className="w-20 h-0.5 bg-isn-primary"></div>
+                  <div className="text-xs bg-gray-100 rounded-full px-3 py-1 mt-1">is {selectedRelationship.toFromRelation} of</div>
+                </div>
+                
+                <div className="text-center">
+                  <Avatar className="h-12 w-12 mx-auto">
+                    <AvatarFallback className="bg-isn-secondary text-white">
+                      {getInitials(selectedRelationship.to?.name || '')}
+                    </AvatarFallback>
+                  </Avatar>
+                  <p className="mt-2 text-sm font-medium">{selectedRelationship.to?.name}</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 border-t border-gray-200 pt-4">
+                <div>
+                  <p className="text-sm font-medium">{selectedRelationship.from?.name} sees {selectedRelationship.to?.name} as:</p>
+                  <p className="text-lg font-semibold text-isn-primary">{selectedRelationship.fromToRelation}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm font-medium">{selectedRelationship.to?.name} sees {selectedRelationship.from?.name} as:</p>
+                  <p className="text-lg font-semibold text-isn-secondary">{selectedRelationship.toFromRelation}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
