@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getFamilyRelationships } from '@/lib/neo4j/family-tree';
 import { getUserPersonalizedFamilyTree } from '@/lib/neo4j/relationships';
+import { toast } from '@/hooks/use-toast';
 
 interface FamilyMember {
   userId: string;
@@ -38,6 +39,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
   const canvasRef = useRef<HTMLDivElement>(null);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch user-specific relationship data based on viewMode
@@ -56,7 +58,9 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
             console.log("Fetched all family relationships for visualization:", relationshipData);
           }
           
-          setRelationships(relationshipData);
+          // Filter out any duplicate relationships to prevent multiple connections
+          const uniqueRelationships = filterUniqueRelationships(relationshipData);
+          setRelationships(uniqueRelationships);
         }
       } catch (error) {
         console.error("Failed to fetch relationships:", error);
@@ -67,6 +71,20 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     
     fetchRelationships();
   }, [user.familyTreeId, user.userId, viewMode]);
+
+  // Helper function to filter out duplicate relationships
+  const filterUniqueRelationships = (relationships: Relationship[]): Relationship[] => {
+    const uniqueMap = new Map<string, Relationship>();
+    
+    relationships.forEach(rel => {
+      const key = `${rel.source}-${rel.target}`;
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, rel);
+      }
+    });
+    
+    return Array.from(uniqueMap.values());
+  };
 
   useEffect(() => {
     if (!canvasRef.current || isLoading) return;
@@ -94,14 +112,23 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       const centerX = width / 2;
       const centerY = height / 2;
       
-      // Create nodes for all family members
+      // Create a unique set of member IDs from both familyMembers and relationships
+      const uniqueMemberIds = new Set<string>();
+      familyMembers.forEach(member => uniqueMemberIds.add(member.userId));
+      
+      // Create nodes for all unique members
       const nodeElements: Record<string, SVGElement> = {};
       const nodePositions: Record<string, {x: number, y: number}> = {};
       
-      // Add nodes for all family members including current user
-      familyMembers.forEach((member, index) => {
+      // Collect unique nodes
+      const uniqueMembers = familyMembers.filter(member => 
+        uniqueMemberIds.has(member.userId)
+      );
+      
+      // Add nodes for all unique family members including current user
+      uniqueMembers.forEach((member, index) => {
         // Calculate initial positions in a circle
-        const angle = (2 * Math.PI * index) / (familyMembers.length || 1);
+        const angle = (2 * Math.PI * index) / (uniqueMembers.length || 1);
         const radius = Math.min(width, height) * 0.35; // Adjust as needed
         const x = centerX + radius * Math.cos(angle);
         const y = centerY + radius * Math.sin(angle);
@@ -114,12 +141,22 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         nodeGroup.setAttribute("transform", `translate(${x}, ${y})`);
         nodeGroup.dataset.userId = member.userId;
         
+        // Add click event to display node details
+        nodeGroup.addEventListener('click', () => {
+          setSelectedNode(member.userId);
+          toast({
+            title: member.name,
+            description: `Email: ${member.email}\nStatus: ${member.status}`,
+          });
+        });
+        
         // Create circle
         const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         circle.setAttribute("r", `${nodeRadius}`);
         circle.setAttribute("fill", member.userId === user.userId ? "#6366f1" : "#9ca3af");
         circle.setAttribute("stroke", "#ffffff");
         circle.setAttribute("stroke-width", "3");
+        circle.style.cursor = "pointer";
         nodeGroup.appendChild(circle);
         
         // Create text for initials
@@ -130,6 +167,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         text.setAttribute("dominant-baseline", "central");
         text.setAttribute("fill", "white");
         text.setAttribute("font-weight", "bold");
+        text.style.pointerEvents = "none";
         nodeGroup.appendChild(text);
         
         // Create text background for name
@@ -149,6 +187,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         nameText.setAttribute("text-anchor", "middle");
         nameText.setAttribute("font-size", "12");
         nameText.setAttribute("fill", "#374151");
+        nameText.style.pointerEvents = "none";
         
         // Calculate width based on text
         const nameWidth = Math.max(member.name.length * 7, 60);
@@ -272,7 +311,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     return () => {
       window.removeEventListener('resize', resizeHandler);
     };
-  }, [user, familyMembers, relationships, isLoading, viewMode]);
+  }, [user, familyMembers, relationships, isLoading, viewMode, selectedNode]);
   
   // Get initials from name
   const getInitials = (name: string) => {

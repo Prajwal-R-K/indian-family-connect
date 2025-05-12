@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { User } from "@/types";
@@ -112,13 +113,13 @@ const RelationshipPage = () => {
       // Update user status to indicate they've defined their relationships
       if (user) {
         await updateUser(user.userId, {
-          // Store user's self-defined relationship in the user node
-          myRelationship: "self"
+          // Store that this user has defined their relationships
+          myRelationship: "defined"
         });
       }
       
       // Update stored user data
-      const updatedUser = { ...user, myRelationship: "self" };
+      const updatedUser = { ...user, myRelationship: "defined" };
       localStorage.setItem('userData', JSON.stringify(updatedUser));
       
       toast({
@@ -148,33 +149,6 @@ const RelationshipPage = () => {
       return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`;
     }
     return name.charAt(0);
-  };
-  
-  // Helper function for opposite relationships
-  const getOppositeRelationship = (relationship: string): string => {
-    const opposites: Record<string, string> = {
-      "father": "child",
-      "mother": "child",
-      "son": "parent",
-      "daughter": "parent",
-      "brother": "sibling",
-      "sister": "sibling",
-      "husband": "spouse",
-      "wife": "spouse",
-      "grandfather": "grandchild",
-      "grandmother": "grandchild",
-      "grandson": "grandparent",
-      "granddaughter": "grandparent",
-      "uncle": "niece/nephew",
-      "aunt": "niece/nephew",
-      "nephew": "uncle/aunt",
-      "niece": "uncle/aunt",
-      "cousin": "cousin",
-      "friend": "friend",
-      "other": "other"
-    };
-    
-    return opposites[relationship.toLowerCase()] || "family";
   };
   
   if (isLoading) {
@@ -212,13 +186,13 @@ const RelationshipPage = () => {
           <CardHeader>
             <CardTitle>Define Your Family Relationships</CardTitle>
             <CardDescription>
-              Welcome to your family tree! Please define your relationship to each family member.
+              Tell us how each family member is related to you.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="mb-4">
               This information helps build your personalized view of the family tree.
-              Each family member defines their own relationships, creating a rich network of connections.
+              For example: "Alice is my mother", "Bob is my brother".
             </p>
           </CardContent>
         </Card>
@@ -251,7 +225,7 @@ const RelationshipPage = () => {
                 </CardHeader>
                 <CardContent className="pt-2 flex-grow">
                   <div className="mb-4">
-                    <p className="text-sm font-medium mb-2">How are you related to {member.name.split(' ')[0]}?</p>
+                    <p className="text-sm font-medium mb-2">{member.name} is my:</p>
                     <Select
                       value={relationships[member.userId] || ''}
                       onValueChange={(value) => handleRelationshipChange(member.userId, value)}
@@ -271,7 +245,7 @@ const RelationshipPage = () => {
                   
                   {relationships[member.userId] && (
                     <div className="text-sm text-gray-500 italic">
-                      You are {relationships[member.userId].toLowerCase()} to {member.name.split(' ')[0]}.
+                      {member.name} is your {relationships[member.userId].toLowerCase()}
                     </div>
                   )}
                 </CardContent>

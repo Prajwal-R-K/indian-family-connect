@@ -20,14 +20,6 @@ const DashboardPage = () => {
     if (userData) {
       console.log("Dashboard: User data found in location state", userData.userId);
       setUser(userData);
-      
-      // If user hasn't defined relationships yet, redirect to relationship page
-      if (userData.status === 'active' && !userData.myRelationship) {
-        console.log("User needs to define relationships, redirecting...");
-        navigate('/relationships', { state: { user: userData } });
-        return;
-      }
-      
       setIsLoading(false);
     } else {
       // If no user data in location state, try to get from localStorage
@@ -44,14 +36,6 @@ const DashboardPage = () => {
             const parsedUserData = JSON.parse(storedUserData);
             console.log("Dashboard: Successfully loaded user data from localStorage", parsedUserData.userId);
             setUser(parsedUserData as User);
-            
-            // Check if user needs to define relationships
-            if (parsedUserData.status === 'active' && !parsedUserData.myRelationship) {
-              console.log("User needs to define relationships, redirecting...");
-              navigate('/relationships', { state: { user: parsedUserData } });
-              return;
-            }
-            
             setIsLoading(false);
             return;
           } catch (e) {
@@ -66,13 +50,6 @@ const DashboardPage = () => {
             if (fetchedUser) {
               console.log("Dashboard: Successfully fetched user data from database", fetchedUser.userId);
               setUser(fetchedUser);
-              
-              // Check if user needs to define relationships
-              if (fetchedUser.status === 'active' && !fetchedUser.myRelationship) {
-                console.log("User needs to define relationships, redirecting...");
-                navigate('/relationships', { state: { user: fetchedUser } });
-                return;
-              }
             } else {
               console.error("Dashboard: User not found in database");
               toast({

@@ -33,14 +33,8 @@ const AuthPage = () => {
     
     console.log(`User authenticated successfully: ${user.userId} (${user.email})`);
     
-    // If this is a newly activated user with no defined relationships yet,
-    // redirect to relationship definition page
-    if (user.status === 'active' && !user.myRelationship) {
-      navigate("/relationships", { state: { user } });
-    } else {
-      // Redirect to dashboard with user data
-      navigate("/dashboard", { state: { user } });
-    }
+    // Always redirect to dashboard - users can define relationships from there
+    navigate("/dashboard", { state: { user } });
   };
   
   return (
