@@ -49,15 +49,19 @@ const registerSchema = z.object({
   path: ["confirmPassword"],
 });
 
-const activateSchema = z.object({
+// Step 1 verification schema for activation
+const verifyActivationSchema = z.object({
   email: z.string().email("Invalid email format"),
   familyTreeId: z.string().min(1, "Family Tree ID is required"),
   tempPassword: z.string().min(1, "Temporary password is required"),
+});
+
+// Step 2 activation schema
+const completeActivationSchema = z.object({
   name: z.string().min(1, "Name is required"),
   userId: z.string().min(4, "User ID must be at least 4 characters"),
   newPassword: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string(),
-  myRelationship: z.string().min(1, "Please confirm your relationship"),
 }).refine((data) => data.newPassword === data.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
@@ -66,7 +70,8 @@ const activateSchema = z.object({
 type FormMode = "login" | "register" | "activate";
 type LoginFormValues = z.infer<typeof loginSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
-type ActivateFormValues = z.infer<typeof activateSchema>;
+type VerifyActivationValues = z.infer<typeof verifyActivationSchema>;
+type CompleteActivationValues = z.infer<typeof completeActivationSchema>;
 
 interface AuthFormProps {
   onSuccess: (user: User) => void;
@@ -80,6 +85,11 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
   const [familyMembers, setFamilyMembers] = useState<InviteFormValues[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const { toast } = useToast();
+
+  // For activation: track verification stage and verified user
+  const [activationStep, setActivationStep] = useState<1 | 2>(1);
+  const [verifiedUser, setVerifiedUser] = useState<User | null>(null);
+  const [verifiedCredentials, setVerifiedCredentials] = useState<VerifyActivationValues | null>(null);
 
   // Login form
   const loginForm = useForm<LoginFormValues>({
@@ -102,18 +112,24 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
     },
   });
 
-  // Activate form
-  const activateForm = useForm<ActivateFormValues>({
-    resolver: zodResolver(activateSchema),
+  // Activate form - Step 1: Verification
+  const verifyActivationForm = useForm<VerifyActivationValues>({
+    resolver: zodResolver(verifyActivationSchema),
     defaultValues: {
       email: "",
       familyTreeId: "",
       tempPassword: "",
+    },
+  });
+
+  // Activate form - Step 2: Complete activation
+  const completeActivationForm = useForm<CompleteActivationValues>({
+    resolver: zodResolver(completeActivationSchema),
+    defaultValues: {
       name: "",
       userId: "",
       newPassword: "",
       confirmPassword: "",
-      myRelationship: "",
     },
   });
 
@@ -269,12 +285,12 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
     }
   };
 
-  // Handle activate submit
-  const onActivateSubmit = async (values: ActivateFormValues) => {
+  // Handle step 1 of activation: Verification
+  const onVerifyActivation = async (values: VerifyActivationValues) => {
     setIsLoading(true);
     
     try {
-      console.log("Starting account activation process...");
+      console.log("Starting account verification process...");
       console.log(`Checking for invited user: ${values.email} in family tree: ${values.familyTreeId}`);
       
       // Get invited user - this checks if email exists in the specified family tree
@@ -283,7 +299,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       if (!user) {
         console.error("User not found in this family tree");
         toast({
-          title: "Activation failed",
+          title: "Verification failed",
           description: "User not found in this family tree. Please check your email and Family Tree ID.",
           variant: "destructive",
         });
@@ -297,7 +313,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       if (user.status !== 'invited') {
         console.error(`User found but status is ${user.status}, not 'invited'`);
         toast({
-          title: "Activation failed",
+          title: "Verification failed",
           description: user.status === 'active' ? 
             "This account is already active. Please login instead." : 
             "This account cannot be activated. Please contact support.",
@@ -311,7 +327,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       if (!user.password || !verifyPassword(values.tempPassword, user.password)) {
         console.error("Invalid temporary password");
         toast({
-          title: "Activation failed",
+          title: "Verification failed",
           description: "Invalid temporary password. Please check your email for the correct password.",
           variant: "destructive",
         });
@@ -319,24 +335,60 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         return;
       }
       
-      console.log("Temporary password verified, updating user details...");
+      // Save verified user and move to step 2
+      setVerifiedUser(user);
+      setVerifiedCredentials(values);
+      setActivationStep(2);
+      
+      toast({
+        title: "Verification successful",
+        description: "Please complete your profile to activate your account.",
+      });
+      
+    } catch (error) {
+      console.error("Verification error:", error);
+      toast({
+        title: "Verification failed",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle step 2 of activation: Complete profile and activation
+  const onCompleteActivation = async (values: CompleteActivationValues) => {
+    if (!verifiedUser || !verifiedCredentials) {
+      toast({
+        title: "Activation failed",
+        description: "Verification information is missing. Please start again.",
+        variant: "destructive",
+      });
+      setActivationStep(1);
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      console.log("Completing account activation process...");
       
       // Create the update payload with all fields except userId
       const updateData: Partial<User> = {
         name: values.name,
         status: "active",
-        password: hashPassword(values.newPassword),
-        myRelationship: values.myRelationship // Store user's self-defined relationship
+        password: hashPassword(values.newPassword)
       };
       
-      // FIXED: First update everything except userId
-      console.log(`Updating user ${user.userId} with data:`, {
+      // First update everything except userId
+      console.log(`Updating user ${verifiedUser.userId} with data:`, {
         ...updateData,
         password: "[REDACTED]"
       });
       
       // First update basic information
-      const updatedUser = await updateUser(user.userId, updateData);
+      const updatedUser = await updateUser(verifiedUser.userId, updateData);
       
       // If user wants a different userId, update it separately
       if (values.userId) {
@@ -354,7 +406,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
           return;
         }
         
-        console.log(`Now updating userId from ${user.userId} to ${values.userId}`);
+        console.log(`Now updating userId from ${updatedUser.userId} to ${values.userId}`);
         
         // Update userId separately
         try {
@@ -399,6 +451,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         description: "An unexpected error occurred. Please check your details and try again.",
         variant: "destructive",
       });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -427,22 +480,32 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
     setFamilyMembers(updatedMembers);
   };
 
+  // Reset activation step when changing tabs
+  const handleTabChange = (value: string) => {
+    setMode(value as FormMode);
+    if (value === "activate") {
+      setActivationStep(1);
+      setVerifiedUser(null);
+      setVerifiedCredentials(null);
+    }
+  };
+
   return (
     <Card className="w-full max-w-md mx-auto border-isn-light shadow-xl">
       <CardHeader className="bg-gradient-to-r from-isn-primary to-isn-secondary text-white rounded-t-lg">
         <CardTitle className="text-center text-2xl">
           {mode === "login" ? "Login to ISN" : 
            mode === "register" ? "Create Your Family Tree" : 
-           "Activate Your Account"}
+           activationStep === 1 ? "Verify your invitation" : "Complete your account setup"}
         </CardTitle>
         <CardDescription className="text-white/80 text-center">
           {mode === "login" ? "Connect with your family network" : 
            mode === "register" ? "Start building your family tree" : 
-           "Complete your account setup"}
+           activationStep === 1 ? "Verify your invitation" : "Complete your account setup"}
         </CardDescription>
       </CardHeader>
       
-      <Tabs value={mode} onValueChange={(value) => setMode(value as FormMode)} className="w-full">
+      <Tabs value={mode} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="login">Login</TabsTrigger>
           <TabsTrigger value="register">Register</TabsTrigger>
@@ -612,155 +675,146 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
           </CardFooter>
         </TabsContent>
         
-        {/* Activate Form */}
+        {/* Activate Form - Now with 2 steps */}
         <TabsContent value="activate">
           <CardContent className="pt-6">
-            <Form {...activateForm}>
-              <form onSubmit={activateForm.handleSubmit(onActivateSubmit)} className="space-y-4">
-                <FormField
-                  control={activateForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter your email" {...field} className="isn-input" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={activateForm.control}
-                  name="familyTreeId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Family Tree ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter Family Tree ID" {...field} className="isn-input" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={activateForm.control}
-                  name="tempPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Temporary Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="Enter temporary password" {...field} className="isn-input" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <div className="border-t border-gray-200 my-4 pt-4">
-                  <h3 className="font-medium mb-3">Complete Your Profile</h3>
-                </div>
-                
-                <FormField
-                  control={activateForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter your full name" {...field} className="isn-input" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={activateForm.control}
-                  name="userId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Choose User ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Create a user ID" {...field} className="isn-input" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={activateForm.control}
-                  name="myRelationship"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Confirm Your Relationship in the Family</FormLabel>
-                      <FormControl>
-                        <select 
-                          {...field} 
-                          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-isn-primary focus:border-isn-primary"
-                        >
-                          <option value="">Select your relationship</option>
-                          <option value="father">Father</option>
-                          <option value="mother">Mother</option>
-                          <option value="son">Son</option>
-                          <option value="daughter">Daughter</option>
-                          <option value="husband">Husband</option>
-                          <option value="wife">Wife</option>
-                          <option value="brother">Brother</option>
-                          <option value="sister">Sister</option>
-                          <option value="grandfather">Grandfather</option>
-                          <option value="grandmother">Grandmother</option>
-                          <option value="grandson">Grandson</option>
-                          <option value="granddaughter">Granddaughter</option>
-                          <option value="uncle">Uncle</option>
-                          <option value="aunt">Aunt</option>
-                          <option value="nephew">Nephew</option>
-                          <option value="niece">Niece</option>
-                          <option value="cousin">Cousin</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={activateForm.control}
-                  name="newPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>New Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="Create a new password" {...field} className="isn-input" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={activateForm.control}
-                  name="confirmPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Confirm Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="Confirm your password" {...field} className="isn-input" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <Button type="submit" className="w-full bg-isn-primary hover:bg-isn-primary/90" disabled={isLoading}>
-                  {isLoading ? "Activating Account..." : "Activate My Account"}
-                </Button>
-              </form>
-            </Form>
+            {activationStep === 1 ? (
+              // Step 1: Verify credentials
+              <Form {...verifyActivationForm}>
+                <form onSubmit={verifyActivationForm.handleSubmit(onVerifyActivation)} className="space-y-4">
+                  <FormField
+                    control={verifyActivationForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter your email" {...field} className="isn-input" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={verifyActivationForm.control}
+                    name="familyTreeId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Family Tree ID</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter Family Tree ID" {...field} className="isn-input" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={verifyActivationForm.control}
+                    name="tempPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Temporary Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="Enter temporary password" {...field} className="isn-input" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <Button type="submit" className="w-full bg-isn-primary hover:bg-isn-primary/90" disabled={isLoading}>
+                    {isLoading ? "Verifying..." : "Verify"}
+                  </Button>
+                </form>
+              </Form>
+            ) : (
+              // Step 2: Complete profile and activate
+              <Form {...completeActivationForm}>
+                <form onSubmit={completeActivationForm.handleSubmit(onCompleteActivation)} className="space-y-4">
+                  <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-4 rounded">
+                    <p className="text-sm text-green-700">
+                      <span className="font-bold">Verification successful!</span> Complete your profile below to activate your account.
+                    </p>
+                  </div>
+                  
+                  <FormField
+                    control={completeActivationForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter your full name" {...field} className="isn-input" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={completeActivationForm.control}
+                    name="userId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Choose User ID</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Create a user ID" {...field} className="isn-input" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={completeActivationForm.control}
+                    name="newPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>New Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="Create a new password" {...field} className="isn-input" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={completeActivationForm.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Confirm Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="Confirm your password" {...field} className="isn-input" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setActivationStep(1)} 
+                      className="flex-1"
+                    >
+                      Back
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      className="flex-1 bg-isn-primary hover:bg-isn-primary/90" 
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Activating..." : "Activate Account"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            )}
           </CardContent>
         </TabsContent>
       </Tabs>

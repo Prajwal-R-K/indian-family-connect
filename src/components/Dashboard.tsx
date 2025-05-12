@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const navigate = useNavigate();
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
+  const [uniqueFamilyMembers, setUniqueFamilyMembers] = useState<any[]>([]);
   const [relationships, setRelationships] = useState<any[]>([]);
   const [userRelationships, setUserRelationships] = useState<any[]>([]);
   const [personalizedView, setPersonalizedView] = useState<any[]>([]);
@@ -31,13 +33,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         setLoading(true);
         console.log("Loading family data for user:", user.userId, "in tree:", user.familyTreeId);
         
-        // Load family members - now ensuring uniqueness by userId
+        // Load family members
         const members = await getFamilyMembers(user.familyTreeId);
         console.log("Loaded family members:", members);
         
         // Make sure we have unique members based on userId
         const uniqueMembers = removeDuplicateMembers(members);
-        setFamilyMembers(uniqueMembers);
+        setFamilyMembers(members);
+        setUniqueFamilyMembers(uniqueMembers);
         
         // Load all relationships in the family tree
         const relations = await getFamilyRelationships(user.familyTreeId);
@@ -173,6 +176,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     
     return "Family member";
   };
+
+  // Format the relationship text for better readability
+  const formatRelationshipText = (relationship: any): string => {
+    // Find the source and target member names
+    const source = uniqueFamilyMembers.find(m => m.userId === relationship.source)?.name || "Someone";
+    const target = uniqueFamilyMembers.find(m => m.userId === relationship.target)?.name || "someone";
+    
+    // Check if user is part of this relationship
+    if (relationship.source === user.userId) {
+      return `You see ${target} as your ${relationship.type}`;
+    } else if (relationship.target === user.userId) {
+      return `${source} sees you as their ${relationship.type}`;
+    }
+    
+    // For third-party relationships (not involving current user)
+    return `${source} sees ${target} as their ${relationship.type}`;
+  };
   
   return (
     <div className="container mx-auto px-4 py-8">
@@ -200,7 +220,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-center">
-              <span className="text-2xl font-bold">{familyMembers.length || 0}</span>
+              <span className="text-2xl font-bold">{uniqueFamilyMembers.length || 0}</span>
               <Button 
                 size="sm" 
                 variant="outline" 
@@ -212,9 +232,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               </Button>
             </div>
             
-            {showAllMembers && familyMembers.length > 0 && (
+            {showAllMembers && uniqueFamilyMembers.length > 0 && (
               <div className="mt-4 space-y-2 max-h-40 overflow-y-auto pr-2">
-                {familyMembers.map((member) => (
+                {uniqueFamilyMembers.map((member) => (
                   <div key={`member-${member.userId}`} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
                     <Avatar className="h-6 w-6">
                       <AvatarFallback className={`text-xs ${member.status === 'invited' ? 'bg-yellow-500' : 'bg-isn-secondary'}`}>
@@ -317,10 +337,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 <div className="h-4 w-40 bg-isn-primary/30 rounded mb-2"></div>
                 <div className="h-4 w-60 bg-isn-primary/30 rounded"></div>
               </div>
-            ) : familyMembers.length > 0 ? (
+            ) : uniqueFamilyMembers.length > 0 ? (
               <FamilyTreeVisualization 
                 user={user} 
-                familyMembers={familyMembers} 
+                familyMembers={uniqueFamilyMembers} 
                 viewMode={viewMode}
               />
             ) : (
@@ -364,13 +384,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               personalizedView.length > 0 ? (
                 <div className="space-y-3">
                   {personalizedView.slice(0, 10).map((rel, idx) => {
-                    const target = familyMembers.find(m => m.userId === rel.target)?.name || "someone";
+                    const target = uniqueFamilyMembers.find(m => m.userId === rel.target)?.name || "someone";
                     return (
                       <div key={`personal-rel-${idx}`} className="flex items-start gap-2">
                         <div className="w-2 h-2 mt-2 rounded-full bg-isn-primary"></div>
                         <p className="text-sm">
-                          <span className="font-medium">You</span> see {target} as your{" "}
-                          <span className="font-medium">{rel.type}</span>
+                          You see {target} as your <span className="font-medium">{rel.type}</span>
                         </p>
                       </div>
                     );
@@ -391,15 +410,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               relationships.length > 0 ? (
                 <div className="space-y-3">
                   {relationships.slice(0, 10).map((rel, idx) => {
-                    const source = familyMembers.find(m => m.userId === rel.source)?.name || "Someone";
-                    const target = familyMembers.find(m => m.userId === rel.target)?.name || "someone";
                     return (
                       <div key={`all-rel-${idx}`} className="flex items-start gap-2">
                         <div className="w-2 h-2 mt-2 rounded-full bg-isn-primary"></div>
-                        <p className="text-sm">
-                          <span className="font-medium">{source}</span> is {rel.type} of{" "}
-                          <span className="font-medium">{target}</span>
-                        </p>
+                        <p className="text-sm">{formatRelationshipText(rel)}</p>
                       </div>
                     );
                   })}

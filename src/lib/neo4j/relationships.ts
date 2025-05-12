@@ -146,71 +146,54 @@ export const createReciprocateRelationships = async (
     await updateBidirectionalRelationship(
       user.email,
       inviterEmail,
-      userRelationship,
-      inviterRelationship
+      userRelationship.toLowerCase(),
+      inviterRelationship.toLowerCase()
     );
     
-    console.log(`Created reciprocal relationships between ${user.email} and ${inviterEmail}`);
-    console.log(`- ${user.email} is ${userRelationship} to ${inviterEmail}`);
-    console.log(`- ${inviterEmail} is ${inviterRelationship} to ${user.email}`);
-    
+    console.log(`Reciprocal relationship created: ${user.email} is ${userRelationship} of ${inviterEmail}, and ${inviterEmail} is ${inviterRelationship} of ${user.email}`);
     return true;
   } catch (error) {
-    console.error("Error creating reciprocal relationships:", error);
+    console.error("Error creating reciprocal relationship:", error);
     return false;
   }
 };
 
-// Get all relationships for a user in a family tree - updated to get RELATES_TO relationships
-export const getUserRelationships = async (email: string, familyTreeId: string): Promise<Relationship[]> => {
-  try {
-    console.log(`Getting relationships for user ${email} in family tree ${familyTreeId}`);
-    const cypher = `
-      MATCH (u:User {email: $email, familyTreeId: $familyTreeId})-[r:RELATES_TO]->(relative:User {familyTreeId: $familyTreeId})
-      RETURN r.relationship as type, u.email as from, relative.email as to, u.userId as fromUserId
-    `;
-    
-    const result = await runQuery(cypher, { email, familyTreeId });
-    console.log(`Found ${result.length} relationships for user ${email}`);
-    
-    return result.map((rel: any) => ({
-      from: rel.from,
-      to: rel.to,
-      type: rel.type.toLowerCase(),
-      fromUserId: rel.fromUserId
-    }));
-  } catch (error) {
-    console.error(`Error getting relationships for user ${email}:`, error);
-    return [];
-  }
-};
-
-// Get personalized family tree view for a specific user
-export const getUserPersonalizedFamilyTree = async (userId: string, familyTreeId: string) => {
-  try {
-    console.log(`Getting personalized family tree for user ${userId} in tree ${familyTreeId}`);
-    
-    const cypher = `
+// Function to get user's personalized view of the family tree
+export const getUserPersonalizedFamilyTree = async (userId: string, familyTreeId: string): Promise<any[]> => {
+  console.log(`Getting personalized family tree for user ${userId} in tree ${familyTreeId}`);
+  
+  const cypher = `
       MATCH (user:User {userId: $userId, familyTreeId: $familyTreeId})
-      MATCH (user)-[r:RELATES_TO]->(relative:User {familyTreeId: $familyTreeId})
-      RETURN user.userId AS userId, user.name AS userName, 
-             relative.userId AS relativeId, relative.name AS relativeName,
-             r.relationship AS relationship
-    `;
-    
-    const result = await runQuery(cypher, { userId, familyTreeId });
-    console.log(`Found ${result.length} personal relationships for user ${userId}`);
-    
-    return result.map((record: any) => ({
-      source: record.userId,
-      sourceName: record.userName,
-      target: record.relativeId,
-      targetName: record.relativeName,
-      type: record.relationship
-    }));
-  } catch (error) {
-    console.error(`Error getting personalized family tree for user ${userId}:`, error);
-    return [];
-  }
+      MATCH (user)-[r:RELATES_TO]->(member:User {familyTreeId: $familyTreeId})
+      RETURN 
+        user.userId as source,
+        user.name as sourceName,
+        member.userId as target, 
+        member.name as targetName,
+        r.relationship as type
+  `;
+  
+  const result = await runQuery(cypher, { userId, familyTreeId });
+  console.log(`Found ${result.length} personal relationships for user ${userId}`);
+  return result;
 };
 
+// Function to get family tree relationships
+export const getUserRelationships = async (email: string, familyTreeId: string): Promise<Relationship[]> => {
+  console.log(`Getting relationships for user ${email} in family tree ${familyTreeId}`);
+  
+  const cypher = `
+      MATCH (u:User {email: $email, familyTreeId: $familyTreeId})
+      MATCH (u)-[r:RELATES_TO]->(target:User {familyTreeId: $familyTreeId})
+      RETURN u.email as from, target.email as to, r.relationship as type, r.fromUserId as fromUserId
+  `;
+  
+  const result = await runQuery(cypher, { email, familyTreeId });
+  console.log(`Found ${result.length} relationships for user ${email}`);
+  return result.map(row => ({
+    from: row.from,
+    to: row.to,
+    type: row.type,
+    fromUserId: row.fromUserId
+  }));
+};

@@ -1,4 +1,6 @@
 
+// Let's improve the visualization code to fix relationship display and node details
+
 import React, { useRef, useEffect, useState } from 'react';
 import { User } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,7 +42,6 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
   const canvasRef = useRef<HTMLDivElement>(null);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
   const [nodeDetailsOpen, setNodeDetailsOpen] = useState(false);
   const [relationshipDetailsOpen, setRelationshipDetailsOpen] = useState(false);
@@ -156,13 +157,6 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
   useEffect(() => {
     if (!canvasRef.current || isLoading) return;
     
-    // Unique set of members based on userId
-    const uniqueMemberIds = new Set<string>();
-    familyMembers.forEach(member => uniqueMemberIds.add(member.userId));
-    const uniqueMembers = Array.from(uniqueMemberIds).map(id => 
-      familyMembers.find(member => member.userId === id)
-    ).filter(Boolean) as FamilyMember[];
-    
     // Force-directed graph rendering
     const renderFamilyTree = () => {
       const container = canvasRef.current;
@@ -191,11 +185,11 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       const nodePositions: Record<string, {x: number, y: number}> = {};
       
       // Add nodes for all unique family members including current user
-      uniqueMembers.forEach((member, index) => {
+      familyMembers.forEach((member, index) => {
         if (!member) return; // Skip null/undefined members
         
         // Calculate initial positions in a circle
-        const angle = (2 * Math.PI * index) / (uniqueMembers.length || 1);
+        const angle = (2 * Math.PI * index) / (familyMembers.length || 1);
         const radius = Math.min(width, height) * 0.35; // Adjust as needed
         const x = centerX + radius * Math.cos(angle);
         const y = centerY + radius * Math.sin(angle);
@@ -401,7 +395,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     return () => {
       window.removeEventListener('resize', resizeHandler);
     };
-  }, [user, familyMembers, relationships, isLoading, viewMode, selectedNode, selectedNodes]);
+  }, [user, familyMembers, relationships, isLoading, viewMode, selectedNodes]);
   
   // Get initials from name
   const getInitials = (name: string) => {
