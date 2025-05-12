@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +23,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [invitationCount, setInvitationCount] = useState(0);
   const [showAllMembers, setShowAllMembers] = useState(false);
-  const [viewMode, setViewMode] = useState<'all' | 'personal'>('personal');
+  const [viewMode, setViewMode] = useState<'personal' | 'all'>('personal');
   
   useEffect(() => {
     const loadFamilyData = async () => {
@@ -119,6 +118,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       title: "View Mode",
       description: `Switched to ${viewMode === 'all' ? 'personal' : 'all family members'} view.`,
     });
+  };
+  
+  const handleDefineRelationships = () => {
+    navigate('/relationships', { state: { user } });
   };
   
   // Get relationship description between current user and another member
@@ -264,17 +267,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         
         <Card className="border-l-4 border-l-green-500">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Invite Members</CardTitle>
-            <CardDescription>Expand your family tree</CardDescription>
+            <CardTitle className="text-lg">Family Relationships</CardTitle>
+            <CardDescription>Define or update your relationships</CardDescription>
           </CardHeader>
           <CardContent>
             <Button 
               size="sm" 
               className="w-full bg-isn-primary hover:bg-isn-primary/90 flex items-center gap-1"
-              onClick={handleInvite}
+              onClick={handleDefineRelationships}
             >
-              <Plus className="h-4 w-4" />
-              <span>Invite</span>
+              <Users className="h-4 w-4" />
+              <span>{user.myRelationship ? "Update" : "Define"} Relationships</span>
             </Button>
           </CardContent>
         </Card>
@@ -298,7 +301,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 <div className="h-4 w-60 bg-isn-primary/30 rounded"></div>
               </div>
             ) : familyMembers.length > 0 ? (
-              <FamilyTreeVisualization user={user} familyMembers={familyMembers} />
+              <FamilyTreeVisualization 
+                user={user} 
+                familyMembers={familyMembers} 
+                viewMode={viewMode}
+              />
             ) : (
               <div className="text-center p-8">
                 <div className="w-20 h-20 mx-auto bg-isn-secondary rounded-full mb-4 flex items-center justify-center text-white">
@@ -400,4 +407,3 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 };
 
 export default Dashboard;
-

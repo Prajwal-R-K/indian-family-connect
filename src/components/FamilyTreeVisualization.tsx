@@ -27,22 +27,36 @@ interface Relationship {
 interface FamilyTreeVisualizationProps {
   user: User;
   familyMembers: FamilyMember[];
+  viewMode?: 'personal' | 'all';
 }
 
-const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user, familyMembers }) => {
+const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ 
+  user, 
+  familyMembers,
+  viewMode = 'personal'
+}) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch user-specific relationship data
+    // Fetch user-specific relationship data based on viewMode
     const fetchRelationships = async () => {
       try {
         if (user.familyTreeId) {
-          // Get personalized view of relationships for the current user
-          const personalRelations = await getUserPersonalizedFamilyTree(user.userId, user.familyTreeId);
-          console.log("Fetched personal relationships for visualization:", personalRelations);
-          setRelationships(personalRelations);
+          let relationshipData: Relationship[] = [];
+          
+          if (viewMode === 'personal') {
+            // Get personalized view of relationships for the current user
+            relationshipData = await getUserPersonalizedFamilyTree(user.userId, user.familyTreeId);
+            console.log("Fetched personal relationships for visualization:", relationshipData);
+          } else {
+            // Get all relationships in the family tree
+            relationshipData = await getFamilyRelationships(user.familyTreeId);
+            console.log("Fetched all family relationships for visualization:", relationshipData);
+          }
+          
+          setRelationships(relationshipData);
         }
       } catch (error) {
         console.error("Failed to fetch relationships:", error);
@@ -52,7 +66,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user,
     };
     
     fetchRelationships();
-  }, [user.familyTreeId, user.userId]);
+  }, [user.familyTreeId, user.userId, viewMode]);
 
   useEffect(() => {
     if (!canvasRef.current || isLoading) return;
@@ -84,7 +98,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user,
       const nodeElements: Record<string, SVGElement> = {};
       const nodePositions: Record<string, {x: number, y: number}> = {};
       
-      // Add the current user as the central node
+      // Add nodes for all family members including current user
       familyMembers.forEach((member, index) => {
         // Calculate initial positions in a circle
         const angle = (2 * Math.PI * index) / (familyMembers.length || 1);
@@ -258,7 +272,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user,
     return () => {
       window.removeEventListener('resize', resizeHandler);
     };
-  }, [user, familyMembers, relationships, isLoading]);
+  }, [user, familyMembers, relationships, isLoading, viewMode]);
   
   // Get initials from name
   const getInitials = (name: string) => {
@@ -283,7 +297,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user,
         </div>
       ) : (
         <div className="absolute top-0 right-0 p-2 text-xs text-gray-500">
-          {relationships.length} relationships found
+          {viewMode === 'personal' ? 'Personal view' : 'All relationships'}: {relationships.length} relationships found
         </div>
       )}
     </div>
@@ -291,4 +305,3 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ user,
 };
 
 export default FamilyTreeVisualization;
-

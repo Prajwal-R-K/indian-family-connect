@@ -200,4 +200,3 @@ export const getUserPersonalFamilyView = async (userId: string, familyTreeId: st
     return [];
   }
 };
-
