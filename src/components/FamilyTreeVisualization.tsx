@@ -31,7 +31,7 @@ interface Relationship {
 interface FamilyTreeVisualizationProps {
   user: User;
   familyMembers: FamilyMember[];
-  viewMode?: 'personal' | 'all';
+  viewMode?: 'personal' | 'all' | 'hyper' | 'connected';
 }
 
 const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({ 
@@ -42,7 +42,8 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
   const canvasRef = useRef<HTMLDivElement>(null);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [previousSelectedNode, setPreviousSelectedNode] = useState<string | null>(null);
   const [nodeDetailsOpen, setNodeDetailsOpen] = useState(false);
   const [relationshipDetailsOpen, setRelationshipDetailsOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
@@ -64,7 +65,19 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
             // Get personalized view of relationships for the current user
             relationshipData = await getUserPersonalizedFamilyTree(user.userId, user.familyTreeId);
             console.log("Fetched personal relationships for visualization:", relationshipData);
-          } else {
+          } 
+          else if (viewMode === 'hyper') {
+            // Get relationships for hyper graph view (clustered by relationship type)
+            relationshipData = await getFamilyRelationships(user.familyTreeId);
+            console.log("Fetched hyper relationships for visualization:", relationshipData);
+          }
+          else if (viewMode === 'connected') {
+            // For future implementation: connected family trees
+            relationshipData = await getFamilyRelationships(user.familyTreeId);
+            // This will be expanded in the future to get connected trees
+            console.log("Fetched connected family trees for visualization:", relationshipData);
+          }
+          else {
             // Get all relationships in the family tree
             relationshipData = await getFamilyRelationships(user.familyTreeId);
             console.log("Fetched all family relationships for visualization:", relationshipData);
@@ -126,31 +139,32 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
 
   // Function to handle node click
   const handleNodeClick = (userId: string) => {
-    // If we already have 2 nodes selected, reset the selection
-    if (selectedNodes.length >= 2) {
-      setSelectedNodes([userId]);
-    } 
-    // If we have 1 node selected and it's not the same node
-    else if (selectedNodes.length === 1 && selectedNodes[0] !== userId) {
-      setSelectedNodes([...selectedNodes, userId]);
-      // Find relationship between these two nodes
-      findRelationshipBetweenNodes(selectedNodes[0], userId);
+    // If the same node is clicked again, deselect it
+    if (selectedNode === userId) {
+      setSelectedNode(null);
+      setPreviousSelectedNode(userId);
+      setNodeDetailsOpen(false);
+      return;
     }
-    // If it's the first node or same node clicked
-    else {
-      // Toggle node selection
-      if (selectedNodes.includes(userId)) {
-        setSelectedNodes(selectedNodes.filter(id => id !== userId));
-      } else {
-        setSelectedNodes([...selectedNodes, userId]);
-      }
-      
-      // Show node details for single node
-      const member = familyMembers.find(m => m.userId === userId);
-      if (member) {
-        setSelectedMember(member);
-        setNodeDetailsOpen(true);
-      }
+    
+    // If we already have a previously selected node and now selecting a different node
+    if (previousSelectedNode && previousSelectedNode !== userId) {
+      // Show relationship between previous and current node
+      findRelationshipBetweenNodes(previousSelectedNode, userId);
+      setPreviousSelectedNode(null); // Reset after showing relationship
+      setSelectedNode(userId);
+      return;
+    }
+    
+    // If this is the first node being selected
+    setSelectedNode(userId);
+    setPreviousSelectedNode(null);
+    
+    // Show node details for this node
+    const member = familyMembers.find(m => m.userId === userId);
+    if (member) {
+      setSelectedMember(member);
+      setNodeDetailsOpen(true);
     }
   };
 
@@ -184,22 +198,97 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       const nodeElements: Record<string, SVGElement> = {};
       const nodePositions: Record<string, {x: number, y: number}> = {};
       
+      // For hyper graph, group members by relationship type
+      const relationshipGroups: Record<string, string[]> = {};
+      
+      if (viewMode === 'hyper') {
+        // Group members by relationship type
+        relationships.forEach(rel => {
+          const relType = rel.type.toLowerCase();
+          if (!relationshipGroups[relType]) {
+            relationshipGroups[relType] = [];
+          }
+          if (!relationshipGroups[relType].includes(rel.source)) {
+            relationshipGroups[relType].push(rel.source);
+          }
+          if (!relationshipGroups[relType].includes(rel.target)) {
+            relationshipGroups[relType].push(rel.target);
+          }
+        });
+        
+        // Create clusters for each relationship type
+        let groupIndex = 0;
+        for (const [relType, memberIds] of Object.entries(relationshipGroups)) {
+          // Create group label
+          const labelGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+          const angle = (2 * Math.PI * groupIndex) / Object.keys(relationshipGroups).length;
+          const radius = Math.min(width, height) * 0.35;
+          const groupX = centerX + radius * Math.cos(angle);
+          const groupY = centerY + radius * Math.sin(angle);
+          
+          // Create background for group
+          const groupBg = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          groupBg.setAttribute("cx", `${groupX}`);
+          groupBg.setAttribute("cy", `${groupY}`);
+          groupBg.setAttribute("r", `${nodeRadius * 3}`);
+          groupBg.setAttribute("fill", "#f3f4f6");
+          groupBg.setAttribute("opacity", "0.6");
+          svg.appendChild(groupBg);
+          
+          // Create label for group
+          const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          label.textContent = relType.charAt(0).toUpperCase() + relType.slice(1) + "s";
+          label.setAttribute("x", `${groupX}`);
+          label.setAttribute("y", `${groupY - nodeRadius * 2}`);
+          label.setAttribute("text-anchor", "middle");
+          label.setAttribute("font-size", "14");
+          label.setAttribute("font-weight", "bold");
+          label.setAttribute("fill", "#4b5563");
+          svg.appendChild(label);
+          
+          // Position members around the group center
+          memberIds.forEach((memberId, memberIndex) => {
+            const member = familyMembers.find(m => m.userId === memberId);
+            if (!member) return;
+            
+            // Calculate position in a mini-circle around the group center
+            const memberAngle = (2 * Math.PI * memberIndex) / memberIds.length;
+            const memberRadius = nodeRadius * 1.5;
+            const x = groupX + memberRadius * Math.cos(memberAngle);
+            const y = groupY + memberRadius * Math.sin(memberAngle);
+            
+            // Store position for this member
+            nodePositions[memberId] = {x, y};
+          });
+          
+          groupIndex++;
+        }
+      } else {
+        // Standard layout in a circle
+        familyMembers.forEach((member, index) => {
+          if (!member) return; // Skip null/undefined members
+          
+          // Calculate initial positions in a circle
+          const angle = (2 * Math.PI * index) / (familyMembers.length || 1);
+          const radius = Math.min(width, height) * 0.35; // Adjust as needed
+          const x = centerX + radius * Math.cos(angle);
+          const y = centerY + radius * Math.sin(angle);
+          
+          // Store position
+          nodePositions[member.userId] = {x, y};
+        });
+      }
+      
       // Add nodes for all unique family members including current user
-      familyMembers.forEach((member, index) => {
-        if (!member) return; // Skip null/undefined members
+      familyMembers.forEach((member) => {
+        if (!member || !nodePositions[member.userId]) return; // Skip if no position
         
-        // Calculate initial positions in a circle
-        const angle = (2 * Math.PI * index) / (familyMembers.length || 1);
-        const radius = Math.min(width, height) * 0.35; // Adjust as needed
-        const x = centerX + radius * Math.cos(angle);
-        const y = centerY + radius * Math.sin(angle);
-        
-        // Store position
-        nodePositions[member.userId] = {x, y};
+        // Get stored position
+        const pos = nodePositions[member.userId];
         
         // Create group for node
         const nodeGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        nodeGroup.setAttribute("transform", `translate(${x}, ${y})`);
+        nodeGroup.setAttribute("transform", `translate(${pos.x}, ${pos.y})`);
         nodeGroup.dataset.userId = member.userId;
         
         // Add click event to display node details
@@ -218,13 +307,13 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
           fillColor = "#6366f1"; // Current user color
         }
         
-        if (selectedNodes.includes(member.userId)) {
+        if (selectedNode === member.userId || previousSelectedNode === member.userId) {
           fillColor = "#10b981"; // Selected node is green
         }
         
         circle.setAttribute("fill", fillColor);
-        circle.setAttribute("stroke", selectedNodes.includes(member.userId) ? "#047857" : "#ffffff");
-        circle.setAttribute("stroke-width", selectedNodes.includes(member.userId) ? "4" : "3");
+        circle.setAttribute("stroke", (selectedNode === member.userId || previousSelectedNode === member.userId) ? "#047857" : "#ffffff");
+        circle.setAttribute("stroke-width", (selectedNode === member.userId || previousSelectedNode === member.userId) ? "4" : "3");
         circle.style.cursor = "pointer";
         
         nodeGroup.appendChild(circle);
@@ -273,87 +362,89 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       });
       
       // Draw edges (relationships)
-      relationships.forEach(rel => {
-        if (nodeElements[rel.source] && nodeElements[rel.target]) {
-          // Create line
-          const sourcePos = nodePositions[rel.source];
-          const targetPos = nodePositions[rel.target];
-          
-          if (!sourcePos || !targetPos) return;
-          
-          // Calculate direction vector
-          const dx = targetPos.x - sourcePos.x;
-          const dy = targetPos.y - sourcePos.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          
-          // Normalize
-          const nx = dx / dist;
-          const ny = dy / dist;
-          
-          // Start and end points (adjusted for node radius)
-          const startX = sourcePos.x + nx * nodeRadius;
-          const startY = sourcePos.y + ny * nodeRadius;
-          const endX = targetPos.x - nx * nodeRadius;
-          const endY = targetPos.y - ny * nodeRadius;
-          
-          // Determine if this is a selected edge
-          const isSelectedEdge = 
-            (selectedNodes.includes(rel.source) && selectedNodes.includes(rel.target)) ||
-            (selectedNodes.includes(rel.target) && selectedNodes.includes(rel.source));
-          
-          // Create line element
-          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          line.setAttribute("x1", `${startX}`);
-          line.setAttribute("y1", `${startY}`);
-          line.setAttribute("x2", `${endX}`);
-          line.setAttribute("y2", `${endY}`);
-          line.setAttribute("stroke", isSelectedEdge ? "#10b981" : "#6366f1");
-          line.setAttribute("stroke-width", isSelectedEdge ? "3" : "2");
-          line.setAttribute("stroke-dasharray", isSelectedEdge ? "" : "4");
-          line.setAttribute("marker-end", "url(#arrowhead)");
-          
-          // Insert line BEFORE nodes so they appear on top
-          svg.insertBefore(line, svg.firstChild);
-          
-          // Create text element for relationship type
-          const midX = (startX + endX) / 2;
-          const midY = (startY + endY) / 2;
-          
-          // Create background for label
-          const textBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-          textBg.setAttribute("rx", "8");
-          textBg.setAttribute("ry", "8");
-          textBg.setAttribute("fill", isSelectedEdge ? "#d1fae5" : "white");
-          textBg.setAttribute("stroke", isSelectedEdge ? "#10b981" : "#e5e7eb");
-          
-          // Create text element
-          const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-          text.textContent = rel.type;
-          text.setAttribute("x", `${midX}`);
-          text.setAttribute("y", `${midY}`);
-          text.setAttribute("text-anchor", "middle");
-          text.setAttribute("dominant-baseline", "central");
-          text.setAttribute("font-size", "10");
-          text.setAttribute("fill", isSelectedEdge ? "#047857" : "#4b5563");
-          text.setAttribute("paint-order", "stroke");
-          text.setAttribute("stroke", isSelectedEdge ? "#d1fae5" : "white");
-          text.setAttribute("stroke-width", "5");
-          
-          // Calculate background dimensions
-          const padding = 6;
-          const bgWidth = rel.type.length * 6 + padding * 2;
-          const bgHeight = 16;
-          
-          textBg.setAttribute("x", `${midX - bgWidth/2}`);
-          textBg.setAttribute("y", `${midY - bgHeight/2}`);
-          textBg.setAttribute("width", `${bgWidth}`);
-          textBg.setAttribute("height", `${bgHeight}`);
-          
-          // Add elements to SVG
-          svg.appendChild(textBg);
-          svg.appendChild(text);
-        }
-      });
+      if (viewMode !== 'hyper') {
+        relationships.forEach(rel => {
+          if (nodeElements[rel.source] && nodeElements[rel.target]) {
+            // Create line
+            const sourcePos = nodePositions[rel.source];
+            const targetPos = nodePositions[rel.target];
+            
+            if (!sourcePos || !targetPos) return;
+            
+            // Calculate direction vector
+            const dx = targetPos.x - sourcePos.x;
+            const dy = targetPos.y - sourcePos.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // Normalize
+            const nx = dx / dist;
+            const ny = dy / dist;
+            
+            // Start and end points (adjusted for node radius)
+            const startX = sourcePos.x + nx * nodeRadius;
+            const startY = sourcePos.y + ny * nodeRadius;
+            const endX = targetPos.x - nx * nodeRadius;
+            const endY = targetPos.y - ny * nodeRadius;
+            
+            // Determine if this is a selected edge
+            const isSelectedEdge = 
+              (selectedNode === rel.source && previousSelectedNode === rel.target) ||
+              (selectedNode === rel.target && previousSelectedNode === rel.source);
+            
+            // Create line element
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", `${startX}`);
+            line.setAttribute("y1", `${startY}`);
+            line.setAttribute("x2", `${endX}`);
+            line.setAttribute("y2", `${endY}`);
+            line.setAttribute("stroke", isSelectedEdge ? "#10b981" : "#6366f1");
+            line.setAttribute("stroke-width", isSelectedEdge ? "3" : "2");
+            line.setAttribute("stroke-dasharray", isSelectedEdge ? "" : "4");
+            line.setAttribute("marker-end", "url(#arrowhead)");
+            
+            // Insert line BEFORE nodes so they appear on top
+            svg.insertBefore(line, svg.firstChild);
+            
+            // Create text element for relationship type
+            const midX = (startX + endX) / 2;
+            const midY = (startY + endY) / 2;
+            
+            // Create background for label
+            const textBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            textBg.setAttribute("rx", "8");
+            textBg.setAttribute("ry", "8");
+            textBg.setAttribute("fill", isSelectedEdge ? "#d1fae5" : "white");
+            textBg.setAttribute("stroke", isSelectedEdge ? "#10b981" : "#e5e7eb");
+            
+            // Create text element
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.textContent = rel.type;
+            text.setAttribute("x", `${midX}`);
+            text.setAttribute("y", `${midY}`);
+            text.setAttribute("text-anchor", "middle");
+            text.setAttribute("dominant-baseline", "central");
+            text.setAttribute("font-size", "10");
+            text.setAttribute("fill", isSelectedEdge ? "#047857" : "#4b5563");
+            text.setAttribute("paint-order", "stroke");
+            text.setAttribute("stroke", isSelectedEdge ? "#d1fae5" : "white");
+            text.setAttribute("stroke-width", "5");
+            
+            // Calculate background dimensions
+            const padding = 6;
+            const bgWidth = rel.type.length * 6 + padding * 2;
+            const bgHeight = 16;
+            
+            textBg.setAttribute("x", `${midX - bgWidth/2}`);
+            textBg.setAttribute("y", `${midY - bgHeight/2}`);
+            textBg.setAttribute("width", `${bgWidth}`);
+            textBg.setAttribute("height", `${bgHeight}`);
+            
+            // Add elements to SVG
+            svg.appendChild(textBg);
+            svg.appendChild(text);
+          }
+        });
+      }
       
       // Add arrowhead marker definition
       const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
@@ -376,12 +467,22 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       
       // Add instructions
       const instructionText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-      instructionText.textContent = "Click on a node to view details, or select two nodes to see their relationship";
+      instructionText.textContent = "Click on a node to view details, click again to deselect, or select two nodes to see their relationship";
       instructionText.setAttribute("x", "10");
       instructionText.setAttribute("y", "20");
       instructionText.setAttribute("font-size", "10");
       instructionText.setAttribute("fill", "#6b7280");
       svg.appendChild(instructionText);
+      
+      // Add view mode indicator
+      const viewModeText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      viewModeText.textContent = `View mode: ${viewMode.charAt(0).toUpperCase() + viewMode.slice(1)}`;
+      viewModeText.setAttribute("x", `${width - 100}`);
+      viewModeText.setAttribute("y", "20");
+      viewModeText.setAttribute("font-size", "10");
+      viewModeText.setAttribute("text-anchor", "end");
+      viewModeText.setAttribute("fill", "#6b7280");
+      svg.appendChild(viewModeText);
     };
     
     renderFamilyTree();
@@ -395,7 +496,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     return () => {
       window.removeEventListener('resize', resizeHandler);
     };
-  }, [user, familyMembers, relationships, isLoading, viewMode, selectedNodes]);
+  }, [user, familyMembers, relationships, isLoading, viewMode, selectedNode, previousSelectedNode]);
   
   // Get initials from name
   const getInitials = (name: string) => {
@@ -420,7 +521,10 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         </div>
       ) : (
         <div className="absolute top-0 right-0 p-2 text-xs text-gray-500">
-          {viewMode === 'personal' ? 'Personal view' : 'All relationships'}: {relationships.length} relationships found
+          {viewMode === 'personal' ? 'Personal view' : 
+           viewMode === 'hyper' ? 'Hyper graph view' : 
+           viewMode === 'connected' ? 'Connected trees view' : 'All relationships view'}: 
+          {relationships.length} relationships found
         </div>
       )}
       

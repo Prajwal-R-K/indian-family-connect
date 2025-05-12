@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +24,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [invitationCount, setInvitationCount] = useState(0);
   const [showAllMembers, setShowAllMembers] = useState(false);
-  const [viewMode, setViewMode] = useState<'personal' | 'all'>('personal');
+  const [viewMode, setViewMode] = useState<'personal' | 'all' | 'hyper' | 'connected'>('personal');
   
   useEffect(() => {
     const loadFamilyData = async () => {
@@ -132,12 +131,34 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     });
   };
   
+  // Toggle view mode function - expanded to include hyper and connected views
   const toggleViewMode = () => {
-    setViewMode(viewMode === 'all' ? 'personal' : 'all');
-    toast({
-      title: "View Mode",
-      description: `Switched to ${viewMode === 'all' ? 'personal' : 'all family members'} view.`,
-    });
+    // Cycle through the view modes: personal -> all -> hyper -> connected -> personal
+    if (viewMode === 'personal') {
+      setViewMode('all');
+      toast({
+        title: "View Mode",
+        description: "Switched to all family members view.",
+      });
+    } else if (viewMode === 'all') {
+      setViewMode('hyper');
+      toast({
+        title: "View Mode",
+        description: "Switched to hyper graph view.",
+      });
+    } else if (viewMode === 'hyper') {
+      setViewMode('connected');
+      toast({
+        title: "View Mode",
+        description: "Switched to connected family trees view.",
+      });
+    } else {
+      setViewMode('personal');
+      toast({
+        title: "View Mode",
+        description: "Switched to personal view.",
+      });
+    }
   };
   
   const handleDefineRelationships = () => {
@@ -295,7 +316,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               >
                 <Network className="h-4 w-4" />
                 <span>
-                  {viewMode === 'personal' ? "All View" : "Personal View"}
+                  {viewMode === 'personal' ? "All View" : 
+                   viewMode === 'all' ? "Hyper View" : 
+                   viewMode === 'hyper' ? "Connected View" : "Personal View"}
                 </span>
               </Button>
             </div>
@@ -325,9 +348,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           <CardHeader>
             <CardTitle className="text-xl">Your Family Tree</CardTitle>
             <CardDescription>
-              {viewMode === 'personal' 
-                ? "Your personal view of family relationships" 
-                : "Interactive view of all family connections"}
+              {viewMode === 'personal' ? "Your personal view of family relationships" : 
+               viewMode === 'hyper' ? "View relationships grouped by type" :
+               viewMode === 'connected' ? "View connected family trees" : 
+               "Interactive view of all family connections"}
             </CardDescription>
           </CardHeader>
           <CardContent className="h-80 flex items-center justify-center bg-gray-100 rounded-lg">
@@ -367,7 +391,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             <div>
               <CardTitle className="text-xl">Family Relationships</CardTitle>
               <CardDescription>
-                {viewMode === 'personal' ? "Your personal connections" : "All family connections"}
+                {viewMode === 'personal' ? "Your personal connections" : 
+                 viewMode === 'hyper' ? "Relationships grouped by type" :
+                 viewMode === 'connected' ? "Connected family trees" :
+                 "All family connections"}
               </CardDescription>
             </div>
             <Button 
@@ -376,7 +403,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               onClick={toggleViewMode}
               className="h-8"
             >
-              {viewMode === 'personal' ? "All" : "Personal"}
+              {viewMode === 'personal' ? "All" : 
+               viewMode === 'all' ? "Hyper" : 
+               viewMode === 'hyper' ? "Connected" : "Personal"}
             </Button>
           </CardHeader>
           <CardContent className="max-h-[300px] overflow-y-auto">

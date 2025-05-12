@@ -340,6 +340,14 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       setVerifiedCredentials(values);
       setActivationStep(2);
       
+      // Reset form fields to ensure they are blank/editable for step 2
+      completeActivationForm.reset({
+        name: "",
+        userId: "",
+        newPassword: "",
+        confirmPassword: ""
+      });
+      
       toast({
         title: "Verification successful",
         description: "Please complete your profile to activate your account.",

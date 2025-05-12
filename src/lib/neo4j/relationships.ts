@@ -82,6 +82,87 @@ export const updateBidirectionalRelationship = async (
   }
 };
 
+// New function to connect users from different family trees
+export const connectFamilyTrees = async (
+  sourceUser: { userId: string, email: string, familyTreeId: string },
+  targetUser: { userId: string, email: string, familyTreeId: string },
+  sourceToTargetRelationship: string,
+  targetToSourceRelationship: string
+): Promise<boolean> => {
+  try {
+    if (sourceUser.familyTreeId === targetUser.familyTreeId) {
+      console.log("Users are already in the same family tree, using bidirectional relationship update instead");
+      return updateBidirectionalRelationship(
+        sourceUser.email,
+        targetUser.email,
+        sourceToTargetRelationship,
+        targetToSourceRelationship
+      );
+    }
+    
+    console.log(`Connecting family trees: ${sourceUser.familyTreeId} and ${targetUser.familyTreeId}`);
+    console.log(`${sourceUser.email} (${sourceUser.familyTreeId}) is ${sourceToTargetRelationship} to ${targetUser.email} (${targetUser.familyTreeId})`);
+    
+    const cypher = `
+      MATCH (source:User {userId: $sourceUserId})
+      MATCH (target:User {userId: $targetUserId})
+      // Create cross-tree relationships
+      CREATE (source)-[r1:CONNECTS_TO {
+        relationship: $sourceToTargetRelationship,
+        sourceFamilyTreeId: $sourceFamilyTreeId,
+        targetFamilyTreeId: $targetFamilyTreeId
+      }]->(target)
+      CREATE (target)-[r2:CONNECTS_TO {
+        relationship: $targetToSourceRelationship,
+        sourceFamilyTreeId: $targetFamilyTreeId,
+        targetFamilyTreeId: $sourceFamilyTreeId
+      }]->(source)
+      RETURN r1.relationship as sourceRel, r2.relationship as targetRel
+    `;
+    
+    const result = await runQuery(cypher, { 
+      sourceUserId: sourceUser.userId,
+      targetUserId: targetUser.userId,
+      sourceFamilyTreeId: sourceUser.familyTreeId,
+      targetFamilyTreeId: targetUser.familyTreeId,
+      sourceToTargetRelationship,
+      targetToSourceRelationship
+    });
+    
+    console.log("Connected family trees result:", result);
+    return result && result.length > 0;
+  } catch (error) {
+    console.error("Error connecting family trees:", error);
+    return false;
+  }
+};
+
+// Get connected family trees 
+export const getConnectedFamilyTrees = async (familyTreeId: string): Promise<any[]> => {
+  try {
+    console.log(`Getting connected family trees for: ${familyTreeId}`);
+    
+    const cypher = `
+      MATCH (user:User {familyTreeId: $familyTreeId})-[r:CONNECTS_TO]->(member:User)
+      WHERE member.familyTreeId <> $familyTreeId
+      RETURN 
+        user.userId as source,
+        user.name as sourceName,
+        member.userId as target, 
+        member.name as targetName,
+        member.familyTreeId as targetFamilyTreeId,
+        r.relationship as type
+    `;
+    
+    const result = await runQuery(cypher, { familyTreeId });
+    console.log(`Found ${result.length} connected family tree relationships`);
+    return result;
+  } catch (error) {
+    console.error("Error fetching connected family trees:", error);
+    return [];
+  }
+};
+
 export const getRelationshipTypes = (): string[] => {
   return [
     "father",
