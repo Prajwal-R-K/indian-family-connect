@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -122,7 +123,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
     },
   });
 
-  // Activate form - Step 2: Complete activation - Now with empty default values
+  // Activate form - Step 2: Complete activation - With empty default values
   const completeActivationForm = useForm<CompleteActivationValues>({
     resolver: zodResolver(completeActivationSchema),
     defaultValues: {
@@ -340,7 +341,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       setVerifiedCredentials(values);
       setActivationStep(2);
       
-      // CRITICAL: Ensure form fields are empty for step 2
+      // CRITICAL: Reset form with empty fields for step 2
       completeActivationForm.reset({
         name: "",
         userId: "",
@@ -750,7 +751,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
                 </form>
               </Form>
             ) : (
-              // Step 2: Complete profile and activate
+              // Step 2: Complete profile and activate - Fixed to ensure fields are empty
               <Form {...completeActivationForm}>
                 <form onSubmit={completeActivationForm.handleSubmit(onCompleteActivation)} className="space-y-4">
                   <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-4 rounded">

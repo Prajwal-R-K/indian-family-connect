@@ -1,4 +1,3 @@
-
 // Let's improve the visualization code to fix relationship display and node details
 
 import React, { useRef, useEffect, useState } from 'react';
@@ -144,7 +143,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     }
   };
 
-  // Function to handle node click - improved to handle deselection properly
+  // Fixed function to handle node click - improved to handle deselection properly
   const handleNodeClick = (userId: string) => {
     console.log(`Node clicked: ${userId}, currently selected: ${selectedNode}, previous: ${previousSelectedNode}`);
     
@@ -181,9 +180,10 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     }
   };
 
-  // Handle closing dialogs - should reset selections
+  // Handle closing dialogs - reset selections
   const handleNodeDetailsClose = () => {
     setNodeDetailsOpen(false);
+    setSelectedNode(null);  // Deselect node when closing details
   };
 
   const handleRelationshipDetailsClose = () => {
@@ -398,32 +398,38 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         circle.setAttribute("r", `${nodeRadius}`);
         
-        // Determine node color based on status and selection
+        // Determine node color based on status and selection - Only color user's node by default
         let fillColor = "#9ca3af"; // Default gray
         
         if (member.userId === user.userId) {
           fillColor = "#6366f1"; // Current user color - indigo
-        } else if (member.status === "active") {
-          fillColor = "#10b981"; // Active member - green
-        } else if (member.status === "invited") {
-          fillColor = "#f59e0b"; // Invited member - amber
+        } else {
+          // Other nodes should be gray by default, only get color when selected
+          fillColor = "#d1d5db"; // Light gray for other nodes
         }
         
+        // If a node is selected, change its color
         if (selectedNode === member.userId) {
-          // Selected node gets highlighted
-          circle.setAttribute("filter", `url(#${nodeShadowId})`);
+          fillColor = "#10b981"; // Selected node - green
+          
+          // Add highlight pulse animation
           const pulseAnimation = document.createElementNS("http://www.w3.org/2000/svg", "animate");
           pulseAnimation.setAttribute("attributeName", "r");
           pulseAnimation.setAttribute("values", `${nodeRadius};${nodeRadius + 2};${nodeRadius}`);
           pulseAnimation.setAttribute("dur", "1.5s");
           pulseAnimation.setAttribute("repeatCount", "indefinite");
           circle.appendChild(pulseAnimation);
-        }
-        
-        if (selectedNode === member.userId || previousSelectedNode === member.userId) {
-          circle.setAttribute("stroke", "#047857"); // Selected node stroke
+          
+          // Add stroke
+          circle.setAttribute("stroke", "#047857");
+          circle.setAttribute("stroke-width", "4");
+        } else if (previousSelectedNode === member.userId) {
+          // If it's the previously selected node in a relationship comparison
+          fillColor = "#10b981"; // Keep green
+          circle.setAttribute("stroke", "#047857");
           circle.setAttribute("stroke-width", "4");
         } else {
+          // Not selected
           circle.setAttribute("stroke", "#ffffff");
           circle.setAttribute("stroke-width", "2");
         }
@@ -491,7 +497,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         svg.appendChild(nodeGroup);
       });
       
-      // Draw edges (relationships) - enhanced with animations
+      // Draw edges (relationships) - enhanced with animations and better visibility
       if (viewMode !== 'hyper') {
         relationships.forEach(rel => {
           if (nodeElements[rel.source] && nodeElements[rel.target]) {
@@ -561,17 +567,20 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
             const pathData = `M${startX},${startY} C${cx1},${cy1} ${cx2},${cy2} ${endX},${endY}`;
             path.setAttribute("d", pathData);
             path.setAttribute("stroke", `url(#${edgeGradientId})`);
-            path.setAttribute("stroke-width", isSelectedEdge ? "3" : "2");
+            path.setAttribute("stroke-width", isSelectedEdge ? "3" : "1.5"); // Thinner lines by default
             path.setAttribute("fill", "none");
+            
+            // Add dotted animation to all connections
+            path.setAttribute("stroke-dasharray", isSelectedEdge ? "none" : "5,5");
             
             // Add animation to selected edge
             if (isSelectedEdge) {
-              const dashArray = document.createElementNS("http://www.w3.org/2000/svg", "animate");
-              dashArray.setAttribute("attributeName", "stroke-dasharray");
-              dashArray.setAttribute("values", "5,5;10,10");
-              dashArray.setAttribute("dur", "1s");
-              dashArray.setAttribute("repeatCount", "indefinite");
-              path.appendChild(dashArray);
+              const dashOffset = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+              dashOffset.setAttribute("attributeName", "stroke-dashoffset");
+              dashOffset.setAttribute("values", "0;40");
+              dashOffset.setAttribute("dur", "1s");
+              dashOffset.setAttribute("repeatCount", "indefinite");
+              path.appendChild(dashOffset);
             }
             
             // Insert path BEFORE nodes so they appear on top
@@ -662,7 +671,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       const instructionBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
       instructionBg.setAttribute("x", "-5");
       instructionBg.setAttribute("y", "-15");
-      instructionBg.setAttribute("width", "520");
+      instructionBg.setAttribute("width", "650");  // Extended width for more detailed instruction
       instructionBg.setAttribute("height", "25");
       instructionBg.setAttribute("rx", "5");
       instructionBg.setAttribute("ry", "5");
@@ -671,7 +680,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       instructionBg.setAttribute("stroke-width", "1");
       
       const instructionText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-      instructionText.textContent = "Click on a node to view details, click again to deselect, or select two nodes to see their relationship";
+      instructionText.textContent = "Click on a node to view details, click same node again to deselect, select a second node to view relationship";
       instructionText.setAttribute("font-size", "11");
       instructionText.setAttribute("fill", "#4b5563");
       
@@ -813,7 +822,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         </DialogContent>
       </Dialog>
       
-      {/* Relationship Details Dialog - Enhanced design */}
+      {/* Relationship Details Dialog - Enhanced design with directional indicators */}
       <Dialog open={relationshipDetailsOpen} onOpenChange={(open) => {
         setRelationshipDetailsOpen(open); 
         if (!open) {
@@ -843,14 +852,28 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
                 </div>
                 
                 <div className="flex flex-col items-center px-4">
-                  <div className="w-24 h-0.5 bg-isn-primary mb-2"></div>
-                  <div className="text-xs bg-gray-100 rounded-full px-3 py-1 mb-1 font-medium">
-                    sees as
+                  {/* Bidirectional relationship indicators */}
+                  <div className="flex flex-col items-center relative">
+                    {/* Top arrow (from left to right) */}
+                    <div className="flex items-center w-28 mb-1">
+                      <div className="w-full h-0.5 bg-isn-primary"></div>
+                      <div className="text-isn-primary" style={{ marginLeft: "-8px" }}>▶</div>
+                    </div>
+                    
+                    <div className="text-xs bg-gradient-to-r from-isn-primary/10 to-isn-primary/20 rounded-full px-3 py-1 mb-1 font-medium">
+                      {selectedRelationship.fromToRelation}
+                    </div>
+                    
+                    {/* Bottom arrow (from right to left) */}
+                    <div className="flex items-center w-28 mt-1 flex-row-reverse">
+                      <div className="w-full h-0.5 bg-isn-secondary"></div>
+                      <div className="text-isn-secondary" style={{ marginRight: "-8px" }}>◀</div>
+                    </div>
+                    
+                    <div className="text-xs bg-gradient-to-r from-isn-secondary/20 to-isn-secondary/10 rounded-full px-3 py-1 mt-1 font-medium">
+                      {selectedRelationship.toFromRelation}
+                    </div>
                   </div>
-                  <div className="text-xs bg-gray-100 rounded-full px-3 py-1 mt-1 font-medium">
-                    sees as
-                  </div>
-                  <div className="w-24 h-0.5 bg-isn-secondary mt-2"></div>
                 </div>
                 
                 <div className="text-center">
