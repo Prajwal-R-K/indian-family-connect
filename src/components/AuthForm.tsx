@@ -122,7 +122,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
     },
   });
 
-  // Activate form - Step 2: Complete activation
+  // Activate form - Step 2: Complete activation - Now with empty default values
   const completeActivationForm = useForm<CompleteActivationValues>({
     resolver: zodResolver(completeActivationSchema),
     defaultValues: {
@@ -488,13 +488,25 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
     setFamilyMembers(updatedMembers);
   };
 
-  // Reset activation step when changing tabs
+  // Reset activation step and form data when changing tabs
   const handleTabChange = (value: string) => {
     setMode(value as FormMode);
     if (value === "activate") {
       setActivationStep(1);
       setVerifiedUser(null);
       setVerifiedCredentials(null);
+      // Reset the activation forms to ensure clean state
+      verifyActivationForm.reset({
+        email: "",
+        familyTreeId: "",
+        tempPassword: ""
+      });
+      completeActivationForm.reset({
+        name: "",
+        userId: "",
+        newPassword: "",
+        confirmPassword: ""
+      });
     }
   };
 

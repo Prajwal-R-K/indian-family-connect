@@ -1,4 +1,3 @@
-
 // Let's improve the visualization code to fix relationship display and node details
 
 import React, { useRef, useEffect, useState } from 'react';
@@ -137,28 +136,29 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     }
   };
 
-  // Function to handle node click
+  // Function to handle node click - improved to handle deselection properly
   const handleNodeClick = (userId: string) => {
-    // If the same node is clicked again, deselect it
+    // If the same node is clicked again, deselect it and close any dialogs
     if (selectedNode === userId) {
       setSelectedNode(null);
-      setPreviousSelectedNode(userId);
+      setPreviousSelectedNode(null);
       setNodeDetailsOpen(false);
       return;
     }
     
-    // If we already have a previously selected node and now selecting a different node
-    if (previousSelectedNode && previousSelectedNode !== userId) {
-      // Show relationship between previous and current node
-      findRelationshipBetweenNodes(previousSelectedNode, userId);
-      setPreviousSelectedNode(null); // Reset after showing relationship
+    // If we have a previously selected node and now selecting a different node
+    if (selectedNode && selectedNode !== userId) {
+      // Show relationship between current selected node and new node
+      findRelationshipBetweenNodes(selectedNode, userId);
+      
+      // After showing relationship, reset selection
+      setPreviousSelectedNode(selectedNode);
       setSelectedNode(userId);
       return;
     }
     
     // If this is the first node being selected
     setSelectedNode(userId);
-    setPreviousSelectedNode(null);
     
     // Show node details for this node
     const member = familyMembers.find(m => m.userId === userId);
@@ -166,6 +166,18 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       setSelectedMember(member);
       setNodeDetailsOpen(true);
     }
+  };
+
+  // Handle closing dialogs - should reset selections
+  const handleNodeDetailsClose = () => {
+    setNodeDetailsOpen(false);
+  };
+
+  const handleRelationshipDetailsClose = () => {
+    setRelationshipDetailsOpen(false);
+    // Reset selections after relationship view is closed
+    setSelectedNode(null);
+    setPreviousSelectedNode(null);
   };
 
   useEffect(() => {
@@ -529,7 +541,14 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       )}
       
       {/* Node Details Dialog */}
-      <Dialog open={nodeDetailsOpen} onOpenChange={setNodeDetailsOpen}>
+      <Dialog open={nodeDetailsOpen} onOpenChange={(open) => {
+        setNodeDetailsOpen(open);
+        if (!open) {
+          // Deselect nodes when dialog is closed
+          setSelectedNode(null);
+          setPreviousSelectedNode(null);
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Member Details</DialogTitle>
@@ -578,7 +597,14 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       </Dialog>
       
       {/* Relationship Details Dialog */}
-      <Dialog open={relationshipDetailsOpen} onOpenChange={setRelationshipDetailsOpen}>
+      <Dialog open={relationshipDetailsOpen} onOpenChange={(open) => {
+        setRelationshipDetailsOpen(open); 
+        if (!open) {
+          // Reset all selections when relationship dialog is closed
+          setSelectedNode(null);
+          setPreviousSelectedNode(null);
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Relationship Details</DialogTitle>
