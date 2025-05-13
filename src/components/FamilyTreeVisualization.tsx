@@ -1,6 +1,4 @@
 
-// Fixed visualization code with proper node selection and relationship display
-
 import React, { useRef, useEffect, useState } from 'react';
 import { User } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -201,6 +199,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
   const handleNodeDetailsClose = () => {
     setNodeDetailsOpen(false);
     setSelectedNode(null);  // Deselect node when closing details
+    setPreviousSelectedNode(null);
   };
 
   const handleRelationshipDetailsClose = () => {
@@ -365,6 +364,66 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         });
       }
       
+      // Add dotted relationship lines from current user to all connected nodes first
+      // This ensures they are drawn below the nodes
+      if (viewMode !== 'hyper') {
+        relationships.forEach(rel => {
+          // Only draw relationships that involve the current user
+          if ((rel.source === user.userId || rel.target === user.userId) && 
+              nodePositions[rel.source] && nodePositions[rel.target]) {
+            
+            const sourcePos = nodePositions[rel.source];
+            const targetPos = nodePositions[rel.target];
+            
+            if (!sourcePos || !targetPos) return;
+            
+            // Calculate direction vector
+            const dx = targetPos.x - sourcePos.x;
+            const dy = targetPos.y - sourcePos.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // Normalize
+            const nx = dx / dist;
+            const ny = dy / dist;
+            
+            // Use bezier curves for nicer connections
+            const curveFactor = dist * 0.2;
+            
+            // Control points for bezier
+            const cx1 = sourcePos.x + nx * curveFactor;
+            const cy1 = sourcePos.y + ny * curveFactor;
+            const cx2 = targetPos.x - nx * curveFactor;
+            const cy2 = targetPos.y - ny * curveFactor;
+            
+            // Start and end points (adjusted for node radius)
+            const startX = sourcePos.x + nx * nodeRadius;
+            const startY = sourcePos.y + ny * nodeRadius;
+            const endX = targetPos.x - nx * nodeRadius;
+            const endY = targetPos.y - ny * nodeRadius;
+            
+            // Add animated, pulsing dotted line for current user's relationships
+            const linePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            const pathData = `M${startX},${startY} C${cx1},${cy1} ${cx2},${cy2} ${endX},${endY}`;
+            linePath.setAttribute("d", pathData);
+            linePath.setAttribute("stroke", "#6366f1");
+            linePath.setAttribute("stroke-width", "2");
+            linePath.setAttribute("fill", "none");
+            linePath.setAttribute("stroke-dasharray", "5,5");
+            
+            // Add animation for dotted line
+            const dashOffset = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+            dashOffset.setAttribute("attributeName", "stroke-dashoffset");
+            dashOffset.setAttribute("values", "0;20");
+            dashOffset.setAttribute("dur", "1.5s");
+            dashOffset.setAttribute("repeatCount", "indefinite");
+            linePath.appendChild(dashOffset);
+            
+            // Insert path BEFORE nodes so they appear on top
+            svg.appendChild(linePath);
+          }
+        });
+      }
+      
       // Add nodes for all unique family members including current user - enhanced visual design
       familyMembers.forEach((member) => {
         if (!member || !nodePositions[member.userId]) return; // Skip if no position
@@ -511,181 +570,163 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         svg.appendChild(nodeGroup);
       });
       
-      // Draw edges (relationships) - enhanced with animations and better visibility
+      // Draw edges (relationships) only for non-user connected nodes
       if (viewMode !== 'hyper') {
         relationships.forEach(rel => {
-          if (nodeElements[rel.source] && nodeElements[rel.target]) {
-            // Create line
-            const sourcePos = nodePositions[rel.source];
-            const targetPos = nodePositions[rel.target];
-            
-            if (!sourcePos || !targetPos) return;
-            
-            // Calculate direction vector
-            const dx = targetPos.x - sourcePos.x;
-            const dy = targetPos.y - sourcePos.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            // Normalize
-            const nx = dx / dist;
-            const ny = dy / dist;
-            
-            // Use bezier curves for nicer connections
-            const curveFactor = dist * 0.2;
-            
-            // Control points for bezier
-            const cx1 = sourcePos.x + nx * curveFactor;
-            const cy1 = sourcePos.y + ny * curveFactor;
-            const cx2 = targetPos.x - nx * curveFactor;
-            const cy2 = targetPos.y - ny * curveFactor;
-            
-            // Start and end points (adjusted for node radius)
-            const startX = sourcePos.x + nx * nodeRadius;
-            const startY = sourcePos.y + ny * nodeRadius;
-            const endX = targetPos.x - nx * nodeRadius;
-            const endY = targetPos.y - ny * nodeRadius;
-            
-            // Determine if this is a selected edge
-            const isSelectedEdge = 
-              (selectedNode === rel.source && previousSelectedNode === rel.target) ||
-              (selectedNode === rel.target && previousSelectedNode === rel.source);
-            
-            // Add gradients for edge
-            const edgeGradientId = `edge-gradient-${rel.source}-${rel.target}`;
-            const edgeGradient = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
-            edgeGradient.setAttribute("id", edgeGradientId);
-            edgeGradient.setAttribute("x1", "0%");
-            edgeGradient.setAttribute("y1", "0%");
-            edgeGradient.setAttribute("x2", "100%");
-            edgeGradient.setAttribute("y2", "0%");
-            
-            const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-            stop1.setAttribute("offset", "0%");
-            stop1.setAttribute("stop-color", isSelectedEdge ? "#10b981" : "#6366f1");
-            
-            const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-            stop2.setAttribute("offset", "100%");
-            stop2.setAttribute("stop-color", isSelectedEdge ? "#16a34a" : "#4f46e5");
-            
-            edgeGradient.appendChild(stop1);
-            edgeGradient.appendChild(stop2);
-            
-            const defs = svg.querySelector("defs") || document.createElementNS("http://www.w3.org/2000/svg", "defs");
-            if (!svg.querySelector("defs")) {
-              svg.appendChild(defs);
-            }
-            defs.appendChild(edgeGradient);
-            
-            // Create path element for curved line
-            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-            const pathData = `M${startX},${startY} C${cx1},${cy1} ${cx2},${cy2} ${endX},${endY}`;
-            path.setAttribute("d", pathData);
-            path.setAttribute("stroke", `url(#${edgeGradientId})`);
-            path.setAttribute("stroke-width", isSelectedEdge ? "3" : "1.5"); // Thinner lines by default
-            path.setAttribute("fill", "none");
-            
-            // Add dotted animation to all connections
-            path.setAttribute("stroke-dasharray", isSelectedEdge ? "none" : "5,5");
-            
-            // Add animation to selected edge
-            if (isSelectedEdge) {
-              const dashOffset = document.createElementNS("http://www.w3.org/2000/svg", "animate");
-              dashOffset.setAttribute("attributeName", "stroke-dashoffset");
-              dashOffset.setAttribute("values", "0;40");
-              dashOffset.setAttribute("dur", "1s");
-              dashOffset.setAttribute("repeatCount", "indefinite");
-              path.appendChild(dashOffset);
-            }
-            
-            // Insert path BEFORE nodes so they appear on top
-            svg.insertBefore(path, svg.firstChild);
-            
-            // Create mid-point for label
-            const midPointX = (startX + endX) / 2;
-            const midPointY = (startY + endY) / 2;
-            
-            // Create fancy background for relationship label
-            const labelGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-            labelGroup.setAttribute("transform", `translate(${midPointX}, ${midPointY})`);
-            
-            // Calculate width based on text
-            const labelWidth = rel.type.length * 7 + 20;
-            
-            // Create background with gradient
-            const labelBgGradientId = `label-bg-${rel.source}-${rel.target}`;
-            const labelBgGradient = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
-            labelBgGradient.setAttribute("id", labelBgGradientId);
-            
-            const labelStop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-            labelStop1.setAttribute("offset", "0%");
-            labelStop1.setAttribute("stop-color", isSelectedEdge ? "#d1fae5" : "#eef2ff");
-            
-            const labelStop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-            labelStop2.setAttribute("offset", "100%");
-            labelStop2.setAttribute("stop-color", isSelectedEdge ? "#a7f3d0" : "#e0e7ff");
-            
-            labelBgGradient.appendChild(labelStop1);
-            labelBgGradient.appendChild(labelStop2);
-            defs.appendChild(labelBgGradient);
-            
-            // Create label background
-            const labelBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-            labelBg.setAttribute("x", `-${labelWidth / 2}`);
-            labelBg.setAttribute("y", "-10");
-            labelBg.setAttribute("width", `${labelWidth}`);
-            labelBg.setAttribute("height", "20");
-            labelBg.setAttribute("rx", "10");
-            labelBg.setAttribute("ry", "10");
-            labelBg.setAttribute("fill", `url(#${labelBgGradientId})`);
-            labelBg.setAttribute("stroke", isSelectedEdge ? "#10b981" : "#818cf8");
-            labelBg.setAttribute("stroke-width", "1");
-            
-            // Create label text
-            const labelText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            labelText.textContent = rel.type;
-            labelText.setAttribute("text-anchor", "middle");
-            labelText.setAttribute("dominant-baseline", "middle");
-            labelText.setAttribute("font-size", "11");
-            labelText.setAttribute("font-weight", isSelectedEdge ? "bold" : "normal");
-            labelText.setAttribute("fill", isSelectedEdge ? "#047857" : "#4338ca");
-            
-            labelGroup.appendChild(labelBg);
-            labelGroup.appendChild(labelText);
-            svg.appendChild(labelGroup);
+          // Skip if either source is user or target is user - we already handled those with animated lines
+          if ((rel.source === user.userId || rel.target === user.userId) || 
+              !nodeElements[rel.source] || !nodeElements[rel.target]) {
+            return;
           }
+          
+          // Create line
+          const sourcePos = nodePositions[rel.source];
+          const targetPos = nodePositions[rel.target];
+          
+          if (!sourcePos || !targetPos) return;
+          
+          // Calculate direction vector
+          const dx = targetPos.x - sourcePos.x;
+          const dy = targetPos.y - sourcePos.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          // Normalize
+          const nx = dx / dist;
+          const ny = dy / dist;
+          
+          // Use bezier curves for nicer connections
+          const curveFactor = dist * 0.2;
+          
+          // Control points for bezier
+          const cx1 = sourcePos.x + nx * curveFactor;
+          const cy1 = sourcePos.y + ny * curveFactor;
+          const cx2 = targetPos.x - nx * curveFactor;
+          const cy2 = targetPos.y - ny * curveFactor;
+          
+          // Start and end points (adjusted for node radius)
+          const startX = sourcePos.x + nx * nodeRadius;
+          const startY = sourcePos.y + ny * nodeRadius;
+          const endX = targetPos.x - nx * nodeRadius;
+          const endY = targetPos.y - ny * nodeRadius;
+          
+          // Determine if this is a selected edge
+          const isSelectedEdge = 
+            (selectedNode === rel.source && previousSelectedNode === rel.target) ||
+            (selectedNode === rel.target && previousSelectedNode === rel.source);
+          
+          // Add gradients for edge
+          const edgeGradientId = `edge-gradient-${rel.source}-${rel.target}`;
+          const edgeGradient = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+          edgeGradient.setAttribute("id", edgeGradientId);
+          edgeGradient.setAttribute("x1", "0%");
+          edgeGradient.setAttribute("y1", "0%");
+          edgeGradient.setAttribute("x2", "100%");
+          edgeGradient.setAttribute("y2", "0%");
+          
+          const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+          stop1.setAttribute("offset", "0%");
+          stop1.setAttribute("stop-color", isSelectedEdge ? "#10b981" : "#6366f1");
+          
+          const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+          stop2.setAttribute("offset", "100%");
+          stop2.setAttribute("stop-color", isSelectedEdge ? "#16a34a" : "#4f46e5");
+          
+          edgeGradient.appendChild(stop1);
+          edgeGradient.appendChild(stop2);
+          
+          const defs = svg.querySelector("defs") || document.createElementNS("http://www.w3.org/2000/svg", "defs");
+          if (!svg.querySelector("defs")) {
+            svg.appendChild(defs);
+          }
+          defs.appendChild(edgeGradient);
+          
+          // Create path element for curved line
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          const pathData = `M${startX},${startY} C${cx1},${cy1} ${cx2},${cy2} ${endX},${endY}`;
+          path.setAttribute("d", pathData);
+          path.setAttribute("stroke", `url(#${edgeGradientId})`);
+          path.setAttribute("stroke-width", isSelectedEdge ? "3" : "1.5"); // Thinner lines by default
+          path.setAttribute("fill", "none");
+          
+          // Add dotted animation to all connections
+          path.setAttribute("stroke-dasharray", isSelectedEdge ? "none" : "5,5");
+          
+          // Add animation to selected edge
+          if (isSelectedEdge) {
+            const dashOffset = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+            dashOffset.setAttribute("attributeName", "stroke-dashoffset");
+            dashOffset.setAttribute("values", "0;40");
+            dashOffset.setAttribute("dur", "1s");
+            dashOffset.setAttribute("repeatCount", "indefinite");
+            path.appendChild(dashOffset);
+          }
+          
+          // Insert path BEFORE nodes so they appear on top
+          svg.insertBefore(path, svg.firstChild);
+          
+          // Create mid-point for label
+          const midPointX = (startX + endX) / 2;
+          const midPointY = (startY + endY) / 2;
+          
+          // Create fancy background for relationship label
+          const labelGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+          labelGroup.setAttribute("transform", `translate(${midPointX}, ${midPointY})`);
+          
+          // Calculate width based on text
+          const labelWidth = rel.type.length * 7 + 20;
+          
+          // Create background with gradient
+          const labelBgGradientId = `label-bg-${rel.source}-${rel.target}`;
+          const labelBgGradient = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+          labelBgGradient.setAttribute("id", labelBgGradientId);
+          
+          const labelStop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+          labelStop1.setAttribute("offset", "0%");
+          labelStop1.setAttribute("stop-color", isSelectedEdge ? "#d1fae5" : "#eef2ff");
+          
+          const labelStop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+          labelStop2.setAttribute("offset", "100%");
+          labelStop2.setAttribute("stop-color", isSelectedEdge ? "#a7f3d0" : "#e0e7ff");
+          
+          labelBgGradient.appendChild(labelStop1);
+          labelBgGradient.appendChild(labelStop2);
+          defs.appendChild(labelBgGradient);
+          
+          // Create label background
+          const labelBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          labelBg.setAttribute("x", `-${labelWidth / 2}`);
+          labelBg.setAttribute("y", "-10");
+          labelBg.setAttribute("width", `${labelWidth}`);
+          labelBg.setAttribute("height", "20");
+          labelBg.setAttribute("rx", "10");
+          labelBg.setAttribute("ry", "10");
+          labelBg.setAttribute("fill", `url(#${labelBgGradientId})`);
+          labelBg.setAttribute("stroke", isSelectedEdge ? "#10b981" : "#818cf8");
+          labelBg.setAttribute("stroke-width", "1");
+          
+          // Create label text
+          const labelText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          labelText.textContent = rel.type;
+          labelText.setAttribute("text-anchor", "middle");
+          labelText.setAttribute("dominant-baseline", "middle");
+          labelText.setAttribute("font-size", "11");
+          labelText.setAttribute("font-weight", isSelectedEdge ? "bold" : "normal");
+          labelText.setAttribute("fill", isSelectedEdge ? "#047857" : "#4338ca");
+          
+          labelGroup.appendChild(labelBg);
+          labelGroup.appendChild(labelText);
+          svg.appendChild(labelGroup);
         });
       }
       
-      // Add arrowhead marker definition with better styling
-      const defs = svg.querySelector("defs") || document.createElementNS("http://www.w3.org/2000/svg", "defs");
-      if (!svg.querySelector("defs")) {
-        svg.appendChild(defs);
-      }
-      
-      const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
-      marker.setAttribute("id", "arrowhead");
-      marker.setAttribute("viewBox", "0 0 10 10");
-      marker.setAttribute("refX", "5");
-      marker.setAttribute("refY", "5");
-      marker.setAttribute("markerWidth", "6");
-      marker.setAttribute("markerHeight", "6");
-      marker.setAttribute("orient", "auto");
-      
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
-      path.setAttribute("fill", "#6366f1");
-      
-      marker.appendChild(path);
-      defs.appendChild(marker);
-      
-      // Add instructions with better styling
+      // Add clearer instructions with better styling
       const instructionGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
       instructionGroup.setAttribute("transform", `translate(10, 20)`);
       
       const instructionBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
       instructionBg.setAttribute("x", "-5");
       instructionBg.setAttribute("y", "-15");
-      instructionBg.setAttribute("width", "650");  // Extended width for more detailed instruction
+      instructionBg.setAttribute("width", "650");
       instructionBg.setAttribute("height", "25");
       instructionBg.setAttribute("rx", "5");
       instructionBg.setAttribute("ry", "5");
@@ -694,8 +735,8 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       instructionBg.setAttribute("stroke-width", "1");
       
       const instructionText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-      instructionText.textContent = "Click on a node to view details, click same node again to deselect, select a second node to view relationship";
-      instructionText.setAttribute("font-size", "11");
+      instructionText.textContent = "Click on a node to view details, select a second node to view relationship, click same node again to deselect";
+      instructionText.setAttribute("font-size", "12");
       instructionText.setAttribute("fill", "#4b5563");
       
       instructionGroup.appendChild(instructionBg);
@@ -773,11 +814,9 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       
       {/* Node Details Dialog */}
       <Dialog open={nodeDetailsOpen} onOpenChange={(open) => {
-        setNodeDetailsOpen(open);
         if (!open) {
-          // Deselect nodes when dialog is closed
-          setSelectedNode(null);
-          setPreviousSelectedNode(null);
+          // Deselect node when dialog is closed manually
+          handleNodeDetailsClose();
         }
       }}>
         <DialogContent className="sm:max-w-md">
@@ -838,11 +877,9 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       
       {/* Relationship Details Dialog - Enhanced design with directional indicators */}
       <Dialog open={relationshipDetailsOpen} onOpenChange={(open) => {
-        setRelationshipDetailsOpen(open); 
         if (!open) {
-          // Reset all selections when relationship dialog is closed
-          setSelectedNode(null);
-          setPreviousSelectedNode(null);
+          // Reset all selections when relationship dialog is closed manually
+          handleRelationshipDetailsClose();
         }
       }}>
         <DialogContent className="sm:max-w-md">
