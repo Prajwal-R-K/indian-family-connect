@@ -1,4 +1,5 @@
-// Let's improve the visualization code to fix relationship display and node details
+
+// Fixed visualization code with proper node selection and relationship display
 
 import React, { useRef, useEffect, useState } from 'react';
 import { User } from '@/types';
@@ -138,12 +139,14 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         toFromRelation: reverseRel?.type || "No direct relationship"
       });
       setRelationshipDetailsOpen(true);
+      return true;
     } else {
       console.log("Could not find one or both members");
+      return false;
     }
   };
 
-  // Fixed function to handle node click - improved to handle deselection properly
+  // Improved function to handle node click with proper selection/deselection
   const handleNodeClick = (userId: string) => {
     console.log(`Node clicked: ${userId}, currently selected: ${selectedNode}, previous: ${previousSelectedNode}`);
     
@@ -156,15 +159,29 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       return;
     }
     
-    // If we have a previously selected node and now selecting a different node
+    // If one node is already selected and now a different node is clicked
     if (selectedNode && selectedNode !== userId) {
       console.log("Second node selected, showing relationship");
-      // Show relationship between current selected node and new node
-      findRelationshipBetweenNodes(selectedNode, userId);
       
-      // After showing relationship, update selection state
-      setPreviousSelectedNode(selectedNode);
-      setSelectedNode(userId);
+      // Try to show relationship between current selected node and new node
+      const relationshipShown = findRelationshipBetweenNodes(selectedNode, userId);
+      
+      if (relationshipShown) {
+        // After showing relationship, update selection state
+        setPreviousSelectedNode(selectedNode);
+        setSelectedNode(userId);
+      } else {
+        // If no relationship found, just update to new node
+        setSelectedNode(userId);
+        setPreviousSelectedNode(null);
+        
+        // Show node details for this node
+        const member = familyMembers.find(m => m.userId === userId);
+        if (member) {
+          setSelectedMember(member);
+          setNodeDetailsOpen(true);
+        }
+      }
       return;
     }
     
@@ -399,13 +416,10 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         circle.setAttribute("r", `${nodeRadius}`);
         
         // Determine node color based on status and selection - Only color user's node by default
-        let fillColor = "#9ca3af"; // Default gray
+        let fillColor = "#d1d5db"; // Default light gray for other nodes
         
         if (member.userId === user.userId) {
           fillColor = "#6366f1"; // Current user color - indigo
-        } else {
-          // Other nodes should be gray by default, only get color when selected
-          fillColor = "#d1d5db"; // Light gray for other nodes
         }
         
         // If a node is selected, change its color
