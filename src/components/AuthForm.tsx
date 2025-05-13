@@ -129,7 +129,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       name: "",
       userId: "",
       newPassword: "",
-      confirmPassword: "",
+      confirmPassword: ""
     },
   });
 
@@ -340,7 +340,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       setVerifiedCredentials(values);
       setActivationStep(2);
       
-      // Reset form fields to ensure they are blank/editable for step 2
+      // CRITICAL: Ensure form fields are empty for step 2
       completeActivationForm.reset({
         name: "",
         userId: "",

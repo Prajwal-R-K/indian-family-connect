@@ -165,7 +165,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     navigate('/relationships', { state: { user } });
   };
   
-  // Get relationship description between current user and another member
+  // Get relationship description between current user and another member - FIXED
   const getRelationship = (memberId: string) => {
     // Try to find user's personal relationship to this member
     const personalRel = personalizedView.find(r => r.target === memberId);
@@ -186,6 +186,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       r.target === user.userId && r.source === memberId
     );
     if (reverseRel) {
+      // FIXED: We need to reverse the relationship description
       return `${reverseRel.type.charAt(0).toUpperCase() + reverseRel.type.slice(1)} of`;
     }
     
@@ -198,17 +199,19 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     return "Family member";
   };
 
-  // Format the relationship text for better readability
+  // Format the relationship text for better readability and correctness
   const formatRelationshipText = (relationship: any): string => {
     // Find the source and target member names
     const source = uniqueFamilyMembers.find(m => m.userId === relationship.source)?.name || "Someone";
     const target = uniqueFamilyMembers.find(m => m.userId === relationship.target)?.name || "someone";
     
-    // Check if user is part of this relationship
+    // FIXED: Ensure the relationship description shows the correct direction
     if (relationship.source === user.userId) {
-      return `You see ${target} as your ${relationship.type}`;
+      // Current user sees someone as their X
+      return `${source} sees ${target} as their ${relationship.type}`;
     } else if (relationship.target === user.userId) {
-      return `${source} sees you as their ${relationship.type}`;
+      // Someone sees current user as their X
+      return `${source} sees ${target} as their ${relationship.type}`;
     }
     
     // For third-party relationships (not involving current user)
@@ -233,7 +236,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         </div>
       </div>
       
+      {/* Dashboard cards section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Family Members card */}
         <Card className="border-l-4 border-l-isn-primary">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Family Members</CardTitle>
@@ -279,6 +284,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </CardContent>
         </Card>
         
+        {/* Invitations card */}
         <Card className="border-l-4 border-l-isn-secondary">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Invitations</CardTitle>
@@ -300,6 +306,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </CardContent>
         </Card>
         
+        {/* Relationships card */}
         <Card className="border-l-4 border-l-isn-accent">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Relationships</CardTitle>
@@ -325,6 +332,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </CardContent>
         </Card>
         
+        {/* Family Relationships card */}
         <Card className="border-l-4 border-l-green-500">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Family Relationships</CardTitle>
@@ -344,6 +352,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Family tree visualization card */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-xl">Your Family Tree</CardTitle>
@@ -386,6 +395,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </CardContent>
         </Card>
         
+        {/* Family Relationships sidebar - FIXED */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -413,12 +423,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               personalizedView.length > 0 ? (
                 <div className="space-y-3">
                   {personalizedView.slice(0, 10).map((rel, idx) => {
-                    const target = uniqueFamilyMembers.find(m => m.userId === rel.target)?.name || "someone";
+                    const targetMember = uniqueFamilyMembers.find(m => m.userId === rel.target);
                     return (
                       <div key={`personal-rel-${idx}`} className="flex items-start gap-2">
                         <div className="w-2 h-2 mt-2 rounded-full bg-isn-primary"></div>
                         <p className="text-sm">
-                          You see {target} as your <span className="font-medium">{rel.type}</span>
+                          You see <span className="font-medium">{targetMember?.name || 'Someone'}</span> as your <span className="font-medium">{rel.type}</span>
                         </p>
                       </div>
                     );
@@ -439,10 +449,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               relationships.length > 0 ? (
                 <div className="space-y-3">
                   {relationships.slice(0, 10).map((rel, idx) => {
+                    // Find the member objects
+                    const sourceMember = uniqueFamilyMembers.find(m => m.userId === rel.source);
+                    const targetMember = uniqueFamilyMembers.find(m => m.userId === rel.target);
+                    
                     return (
                       <div key={`all-rel-${idx}`} className="flex items-start gap-2">
                         <div className="w-2 h-2 mt-2 rounded-full bg-isn-primary"></div>
-                        <p className="text-sm">{formatRelationshipText(rel)}</p>
+                        <p className="text-sm">
+                          <span className="font-medium">{sourceMember?.name || 'Someone'}</span> sees <span className="font-medium">{targetMember?.name || 'someone'}</span> as their <span className="font-medium">{rel.type}</span>
+                        </p>
                       </div>
                     );
                   })}

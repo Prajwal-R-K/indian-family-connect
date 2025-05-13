@@ -1,3 +1,4 @@
+
 // Let's improve the visualization code to fix relationship display and node details
 
 import React, { useRef, useEffect, useState } from 'react';
@@ -112,6 +113,8 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
 
   // Function to find relationship between two nodes
   const findRelationshipBetweenNodes = (sourceId: string, targetId: string) => {
+    console.log(`Finding relationship between ${sourceId} and ${targetId}`);
+    
     // Get forward relationship
     const forwardRel = relationships.find(rel => 
       rel.source === sourceId && rel.target === targetId
@@ -126,6 +129,9 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     const targetMember = familyMembers.find(m => m.userId === targetId);
     
     if (sourceMember && targetMember) {
+      console.log(`Found relationship: ${sourceMember.name} -> ${targetMember.name}`);
+      console.log(`Forward: ${forwardRel?.type || "None"}, Reverse: ${reverseRel?.type || "None"}`);
+      
       setSelectedRelationship({
         from: sourceMember,
         to: targetMember,
@@ -133,13 +139,18 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         toFromRelation: reverseRel?.type || "No direct relationship"
       });
       setRelationshipDetailsOpen(true);
+    } else {
+      console.log("Could not find one or both members");
     }
   };
 
   // Function to handle node click - improved to handle deselection properly
   const handleNodeClick = (userId: string) => {
+    console.log(`Node clicked: ${userId}, currently selected: ${selectedNode}, previous: ${previousSelectedNode}`);
+    
     // If the same node is clicked again, deselect it and close any dialogs
     if (selectedNode === userId) {
+      console.log("Deselecting node");
       setSelectedNode(null);
       setPreviousSelectedNode(null);
       setNodeDetailsOpen(false);
@@ -148,16 +159,18 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     
     // If we have a previously selected node and now selecting a different node
     if (selectedNode && selectedNode !== userId) {
+      console.log("Second node selected, showing relationship");
       // Show relationship between current selected node and new node
       findRelationshipBetweenNodes(selectedNode, userId);
       
-      // After showing relationship, reset selection
+      // After showing relationship, update selection state
       setPreviousSelectedNode(selectedNode);
       setSelectedNode(userId);
       return;
     }
     
     // If this is the first node being selected
+    console.log("First node selected, showing details");
     setSelectedNode(userId);
     
     // Show node details for this node
@@ -183,7 +196,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
   useEffect(() => {
     if (!canvasRef.current || isLoading) return;
     
-    // Force-directed graph rendering
+    // Force-directed graph rendering with improved visual design
     const renderFamilyTree = () => {
       const container = canvasRef.current;
       if (!container) return;
@@ -228,7 +241,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
           }
         });
         
-        // Create clusters for each relationship type
+        // Create clusters for each relationship type - enhanced visual design
         let groupIndex = 0;
         for (const [relType, memberIds] of Object.entries(relationshipGroups)) {
           // Create group label
@@ -238,16 +251,46 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
           const groupX = centerX + radius * Math.cos(angle);
           const groupY = centerY + radius * Math.sin(angle);
           
-          // Create background for group
+          // Create background for group with gradient
+          const gradientId = `gradient-${relType}`;
+          const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+          const gradient = document.createElementNS("http://www.w3.org/2000/svg", "radialGradient");
+          gradient.setAttribute("id", gradientId);
+          gradient.setAttribute("cx", "50%");
+          gradient.setAttribute("cy", "50%");
+          gradient.setAttribute("r", "50%");
+          
+          const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+          stop1.setAttribute("offset", "0%");
+          stop1.setAttribute("stop-color", "#e0e7ff");
+          
+          const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+          stop2.setAttribute("offset", "100%");
+          stop2.setAttribute("stop-color", "#f3f4f6");
+          
+          gradient.appendChild(stop1);
+          gradient.appendChild(stop2);
+          defs.appendChild(gradient);
+          svg.appendChild(defs);
+          
+          // Create group background with animation
           const groupBg = document.createElementNS("http://www.w3.org/2000/svg", "circle");
           groupBg.setAttribute("cx", `${groupX}`);
           groupBg.setAttribute("cy", `${groupY}`);
           groupBg.setAttribute("r", `${nodeRadius * 3}`);
-          groupBg.setAttribute("fill", "#f3f4f6");
-          groupBg.setAttribute("opacity", "0.6");
+          groupBg.setAttribute("fill", `url(#${gradientId})`);
+          groupBg.setAttribute("opacity", "0.8");
           svg.appendChild(groupBg);
           
-          // Create label for group
+          // Add pulsing animation
+          const animate = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+          animate.setAttribute("attributeName", "r");
+          animate.setAttribute("values", `${nodeRadius * 2.8};${nodeRadius * 3.2};${nodeRadius * 2.8}`);
+          animate.setAttribute("dur", "3s");
+          animate.setAttribute("repeatCount", "indefinite");
+          groupBg.appendChild(animate);
+          
+          // Create label for group with better styling
           const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
           label.textContent = relType.charAt(0).toUpperCase() + relType.slice(1) + "s";
           label.setAttribute("x", `${groupX}`);
@@ -256,6 +299,20 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
           label.setAttribute("font-size", "14");
           label.setAttribute("font-weight", "bold");
           label.setAttribute("fill", "#4b5563");
+          
+          // Add drop shadow for better visibility
+          const labelShadow = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+          labelShadow.setAttribute("id", `shadow-${relType}`);
+          const feDropShadow = document.createElementNS("http://www.w3.org/2000/svg", "feDropShadow");
+          feDropShadow.setAttribute("dx", "0");
+          feDropShadow.setAttribute("dy", "1");
+          feDropShadow.setAttribute("stdDeviation", "1");
+          feDropShadow.setAttribute("flood-color", "#000000");
+          feDropShadow.setAttribute("flood-opacity", "0.3");
+          labelShadow.appendChild(feDropShadow);
+          defs.appendChild(labelShadow);
+          
+          label.setAttribute("filter", `url(#shadow-${relType})`);
           svg.appendChild(label);
           
           // Position members around the group center
@@ -265,7 +322,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
             
             // Calculate position in a mini-circle around the group center
             const memberAngle = (2 * Math.PI * memberIndex) / memberIds.length;
-            const memberRadius = nodeRadius * 1.5;
+            const memberRadius = nodeRadius * 2;
             const x = groupX + memberRadius * Math.cos(memberAngle);
             const y = groupY + memberRadius * Math.sin(memberAngle);
             
@@ -276,7 +333,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
           groupIndex++;
         }
       } else {
-        // Standard layout in a circle
+        // Standard layout in a circle or force-directed layout
         familyMembers.forEach((member, index) => {
           if (!member) return; // Skip null/undefined members
           
@@ -291,7 +348,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         });
       }
       
-      // Add nodes for all unique family members including current user
+      // Add nodes for all unique family members including current user - enhanced visual design
       familyMembers.forEach((member) => {
         if (!member || !nodePositions[member.userId]) return; // Skip if no position
         
@@ -308,6 +365,35 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
           handleNodeClick(member.userId);
         });
         
+        // Add shadow effect for nodes
+        const nodeShadowId = `node-shadow-${member.userId}`;
+        const nodeShadow = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+        nodeShadow.setAttribute("id", nodeShadowId);
+        nodeShadow.setAttribute("x", "-50%");
+        nodeShadow.setAttribute("y", "-50%");
+        nodeShadow.setAttribute("width", "200%");
+        nodeShadow.setAttribute("height", "200%");
+        
+        const feDropShadow = document.createElementNS("http://www.w3.org/2000/svg", "feDropShadow");
+        feDropShadow.setAttribute("dx", "0");
+        feDropShadow.setAttribute("dy", "3");
+        feDropShadow.setAttribute("stdDeviation", "3");
+        feDropShadow.setAttribute("flood-color", "#0000003d");
+        nodeShadow.appendChild(feDropShadow);
+        
+        const defs = svg.querySelector("defs") || document.createElementNS("http://www.w3.org/2000/svg", "defs");
+        if (!svg.querySelector("defs")) {
+          svg.appendChild(defs);
+        }
+        defs.appendChild(nodeShadow);
+        
+        // Create fancy background glow circle for aesthetic
+        const glowCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        glowCircle.setAttribute("r", `${nodeRadius + 3}`);
+        glowCircle.setAttribute("fill", "rgba(99, 102, 241, 0.1)");
+        glowCircle.setAttribute("stroke", "none");
+        nodeGroup.appendChild(glowCircle);
+        
         // Create circle with different style if selected
         const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         circle.setAttribute("r", `${nodeRadius}`);
@@ -316,16 +402,33 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         let fillColor = "#9ca3af"; // Default gray
         
         if (member.userId === user.userId) {
-          fillColor = "#6366f1"; // Current user color
+          fillColor = "#6366f1"; // Current user color - indigo
+        } else if (member.status === "active") {
+          fillColor = "#10b981"; // Active member - green
+        } else if (member.status === "invited") {
+          fillColor = "#f59e0b"; // Invited member - amber
+        }
+        
+        if (selectedNode === member.userId) {
+          // Selected node gets highlighted
+          circle.setAttribute("filter", `url(#${nodeShadowId})`);
+          const pulseAnimation = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+          pulseAnimation.setAttribute("attributeName", "r");
+          pulseAnimation.setAttribute("values", `${nodeRadius};${nodeRadius + 2};${nodeRadius}`);
+          pulseAnimation.setAttribute("dur", "1.5s");
+          pulseAnimation.setAttribute("repeatCount", "indefinite");
+          circle.appendChild(pulseAnimation);
         }
         
         if (selectedNode === member.userId || previousSelectedNode === member.userId) {
-          fillColor = "#10b981"; // Selected node is green
+          circle.setAttribute("stroke", "#047857"); // Selected node stroke
+          circle.setAttribute("stroke-width", "4");
+        } else {
+          circle.setAttribute("stroke", "#ffffff");
+          circle.setAttribute("stroke-width", "2");
         }
         
         circle.setAttribute("fill", fillColor);
-        circle.setAttribute("stroke", (selectedNode === member.userId || previousSelectedNode === member.userId) ? "#047857" : "#ffffff");
-        circle.setAttribute("stroke-width", (selectedNode === member.userId || previousSelectedNode === member.userId) ? "4" : "3");
         circle.style.cursor = "pointer";
         
         nodeGroup.appendChild(circle);
@@ -341,39 +444,54 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         text.style.pointerEvents = "none";
         nodeGroup.appendChild(text);
         
+        // Create nicer name label with background
+        const nameBackgroundGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        nameBackgroundGroup.setAttribute("transform", `translate(0, ${nodeRadius + 15})`);
+        
+        // Calculate width based on text
+        const nameWidth = Math.max(member.name.length * 7, 70);
+        
         // Create text background for name
         const nameBackground = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        nameBackground.setAttribute("y", `${nodeRadius + 5}`);
+        nameBackground.setAttribute("x", `-${nameWidth / 2}`);
+        nameBackground.setAttribute("y", "-10");
+        nameBackground.setAttribute("width", `${nameWidth}`);
         nameBackground.setAttribute("height", "20");
         nameBackground.setAttribute("rx", "10");
         nameBackground.setAttribute("ry", "10");
         nameBackground.setAttribute("fill", "white");
         nameBackground.setAttribute("stroke", "#e5e7eb");
         nameBackground.setAttribute("stroke-width", "1");
+        nameBackground.setAttribute("filter", "url(#node-shadow-" + member.userId + ")");
         
         // Create text for name
         const nameText = document.createElementNS("http://www.w3.org/2000/svg", "text");
         nameText.textContent = member.name;
-        nameText.setAttribute("y", `${nodeRadius + 15}`);
         nameText.setAttribute("text-anchor", "middle");
         nameText.setAttribute("font-size", "12");
         nameText.setAttribute("fill", "#374151");
         nameText.style.pointerEvents = "none";
         
-        // Calculate width based on text
-        const nameWidth = Math.max(member.name.length * 7, 60);
-        nameBackground.setAttribute("width", `${nameWidth}`);
-        nameBackground.setAttribute("x", `-${nameWidth / 2}`);
+        nameBackgroundGroup.appendChild(nameBackground);
+        nameBackgroundGroup.appendChild(nameText);
+        nodeGroup.appendChild(nameBackgroundGroup);
         
-        nodeGroup.appendChild(nameBackground);
-        nodeGroup.appendChild(nameText);
+        // Add status indicator
+        const statusIndicator = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        statusIndicator.setAttribute("cx", `${nodeRadius - 5}`);
+        statusIndicator.setAttribute("cy", `-${nodeRadius - 5}`);
+        statusIndicator.setAttribute("r", "6");
+        statusIndicator.setAttribute("fill", member.status === "active" ? "#10b981" : "#f59e0b");
+        statusIndicator.setAttribute("stroke", "white");
+        statusIndicator.setAttribute("stroke-width", "2");
+        nodeGroup.appendChild(statusIndicator);
         
         // Store node reference
         nodeElements[member.userId] = nodeGroup;
         svg.appendChild(nodeGroup);
       });
       
-      // Draw edges (relationships)
+      // Draw edges (relationships) - enhanced with animations
       if (viewMode !== 'hyper') {
         relationships.forEach(rel => {
           if (nodeElements[rel.source] && nodeElements[rel.target]) {
@@ -392,6 +510,15 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
             const nx = dx / dist;
             const ny = dy / dist;
             
+            // Use bezier curves for nicer connections
+            const curveFactor = dist * 0.2;
+            
+            // Control points for bezier
+            const cx1 = sourcePos.x + nx * curveFactor;
+            const cy1 = sourcePos.y + ny * curveFactor;
+            const cx2 = targetPos.x - nx * curveFactor;
+            const cy2 = targetPos.y - ny * curveFactor;
+            
             // Start and end points (adjusted for node radius)
             const startX = sourcePos.x + nx * nodeRadius;
             const startY = sourcePos.y + ny * nodeRadius;
@@ -403,63 +530,115 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
               (selectedNode === rel.source && previousSelectedNode === rel.target) ||
               (selectedNode === rel.target && previousSelectedNode === rel.source);
             
-            // Create line element
-            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            line.setAttribute("x1", `${startX}`);
-            line.setAttribute("y1", `${startY}`);
-            line.setAttribute("x2", `${endX}`);
-            line.setAttribute("y2", `${endY}`);
-            line.setAttribute("stroke", isSelectedEdge ? "#10b981" : "#6366f1");
-            line.setAttribute("stroke-width", isSelectedEdge ? "3" : "2");
-            line.setAttribute("stroke-dasharray", isSelectedEdge ? "" : "4");
-            line.setAttribute("marker-end", "url(#arrowhead)");
+            // Add gradients for edge
+            const edgeGradientId = `edge-gradient-${rel.source}-${rel.target}`;
+            const edgeGradient = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+            edgeGradient.setAttribute("id", edgeGradientId);
+            edgeGradient.setAttribute("x1", "0%");
+            edgeGradient.setAttribute("y1", "0%");
+            edgeGradient.setAttribute("x2", "100%");
+            edgeGradient.setAttribute("y2", "0%");
             
-            // Insert line BEFORE nodes so they appear on top
-            svg.insertBefore(line, svg.firstChild);
+            const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+            stop1.setAttribute("offset", "0%");
+            stop1.setAttribute("stop-color", isSelectedEdge ? "#10b981" : "#6366f1");
             
-            // Create text element for relationship type
-            const midX = (startX + endX) / 2;
-            const midY = (startY + endY) / 2;
+            const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+            stop2.setAttribute("offset", "100%");
+            stop2.setAttribute("stop-color", isSelectedEdge ? "#16a34a" : "#4f46e5");
             
-            // Create background for label
-            const textBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-            textBg.setAttribute("rx", "8");
-            textBg.setAttribute("ry", "8");
-            textBg.setAttribute("fill", isSelectedEdge ? "#d1fae5" : "white");
-            textBg.setAttribute("stroke", isSelectedEdge ? "#10b981" : "#e5e7eb");
+            edgeGradient.appendChild(stop1);
+            edgeGradient.appendChild(stop2);
             
-            // Create text element
-            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            text.textContent = rel.type;
-            text.setAttribute("x", `${midX}`);
-            text.setAttribute("y", `${midY}`);
-            text.setAttribute("text-anchor", "middle");
-            text.setAttribute("dominant-baseline", "central");
-            text.setAttribute("font-size", "10");
-            text.setAttribute("fill", isSelectedEdge ? "#047857" : "#4b5563");
-            text.setAttribute("paint-order", "stroke");
-            text.setAttribute("stroke", isSelectedEdge ? "#d1fae5" : "white");
-            text.setAttribute("stroke-width", "5");
+            const defs = svg.querySelector("defs") || document.createElementNS("http://www.w3.org/2000/svg", "defs");
+            if (!svg.querySelector("defs")) {
+              svg.appendChild(defs);
+            }
+            defs.appendChild(edgeGradient);
             
-            // Calculate background dimensions
-            const padding = 6;
-            const bgWidth = rel.type.length * 6 + padding * 2;
-            const bgHeight = 16;
+            // Create path element for curved line
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            const pathData = `M${startX},${startY} C${cx1},${cy1} ${cx2},${cy2} ${endX},${endY}`;
+            path.setAttribute("d", pathData);
+            path.setAttribute("stroke", `url(#${edgeGradientId})`);
+            path.setAttribute("stroke-width", isSelectedEdge ? "3" : "2");
+            path.setAttribute("fill", "none");
             
-            textBg.setAttribute("x", `${midX - bgWidth/2}`);
-            textBg.setAttribute("y", `${midY - bgHeight/2}`);
-            textBg.setAttribute("width", `${bgWidth}`);
-            textBg.setAttribute("height", `${bgHeight}`);
+            // Add animation to selected edge
+            if (isSelectedEdge) {
+              const dashArray = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+              dashArray.setAttribute("attributeName", "stroke-dasharray");
+              dashArray.setAttribute("values", "5,5;10,10");
+              dashArray.setAttribute("dur", "1s");
+              dashArray.setAttribute("repeatCount", "indefinite");
+              path.appendChild(dashArray);
+            }
             
-            // Add elements to SVG
-            svg.appendChild(textBg);
-            svg.appendChild(text);
+            // Insert path BEFORE nodes so they appear on top
+            svg.insertBefore(path, svg.firstChild);
+            
+            // Create mid-point for label
+            const midPointX = (startX + endX) / 2;
+            const midPointY = (startY + endY) / 2;
+            
+            // Create fancy background for relationship label
+            const labelGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            labelGroup.setAttribute("transform", `translate(${midPointX}, ${midPointY})`);
+            
+            // Calculate width based on text
+            const labelWidth = rel.type.length * 7 + 20;
+            
+            // Create background with gradient
+            const labelBgGradientId = `label-bg-${rel.source}-${rel.target}`;
+            const labelBgGradient = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+            labelBgGradient.setAttribute("id", labelBgGradientId);
+            
+            const labelStop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+            labelStop1.setAttribute("offset", "0%");
+            labelStop1.setAttribute("stop-color", isSelectedEdge ? "#d1fae5" : "#eef2ff");
+            
+            const labelStop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+            labelStop2.setAttribute("offset", "100%");
+            labelStop2.setAttribute("stop-color", isSelectedEdge ? "#a7f3d0" : "#e0e7ff");
+            
+            labelBgGradient.appendChild(labelStop1);
+            labelBgGradient.appendChild(labelStop2);
+            defs.appendChild(labelBgGradient);
+            
+            // Create label background
+            const labelBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            labelBg.setAttribute("x", `-${labelWidth / 2}`);
+            labelBg.setAttribute("y", "-10");
+            labelBg.setAttribute("width", `${labelWidth}`);
+            labelBg.setAttribute("height", "20");
+            labelBg.setAttribute("rx", "10");
+            labelBg.setAttribute("ry", "10");
+            labelBg.setAttribute("fill", `url(#${labelBgGradientId})`);
+            labelBg.setAttribute("stroke", isSelectedEdge ? "#10b981" : "#818cf8");
+            labelBg.setAttribute("stroke-width", "1");
+            
+            // Create label text
+            const labelText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            labelText.textContent = rel.type;
+            labelText.setAttribute("text-anchor", "middle");
+            labelText.setAttribute("dominant-baseline", "middle");
+            labelText.setAttribute("font-size", "11");
+            labelText.setAttribute("font-weight", isSelectedEdge ? "bold" : "normal");
+            labelText.setAttribute("fill", isSelectedEdge ? "#047857" : "#4338ca");
+            
+            labelGroup.appendChild(labelBg);
+            labelGroup.appendChild(labelText);
+            svg.appendChild(labelGroup);
           }
         });
       }
       
-      // Add arrowhead marker definition
-      const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+      // Add arrowhead marker definition with better styling
+      const defs = svg.querySelector("defs") || document.createElementNS("http://www.w3.org/2000/svg", "defs");
+      if (!svg.querySelector("defs")) {
+        svg.appendChild(defs);
+      }
+      
       const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
       marker.setAttribute("id", "arrowhead");
       marker.setAttribute("viewBox", "0 0 10 10");
@@ -475,26 +654,55 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       
       marker.appendChild(path);
       defs.appendChild(marker);
-      svg.insertBefore(defs, svg.firstChild);
       
-      // Add instructions
+      // Add instructions with better styling
+      const instructionGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      instructionGroup.setAttribute("transform", `translate(10, 20)`);
+      
+      const instructionBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      instructionBg.setAttribute("x", "-5");
+      instructionBg.setAttribute("y", "-15");
+      instructionBg.setAttribute("width", "520");
+      instructionBg.setAttribute("height", "25");
+      instructionBg.setAttribute("rx", "5");
+      instructionBg.setAttribute("ry", "5");
+      instructionBg.setAttribute("fill", "rgba(255, 255, 255, 0.8)");
+      instructionBg.setAttribute("stroke", "#e5e7eb");
+      instructionBg.setAttribute("stroke-width", "1");
+      
       const instructionText = document.createElementNS("http://www.w3.org/2000/svg", "text");
       instructionText.textContent = "Click on a node to view details, click again to deselect, or select two nodes to see their relationship";
-      instructionText.setAttribute("x", "10");
-      instructionText.setAttribute("y", "20");
-      instructionText.setAttribute("font-size", "10");
-      instructionText.setAttribute("fill", "#6b7280");
-      svg.appendChild(instructionText);
+      instructionText.setAttribute("font-size", "11");
+      instructionText.setAttribute("fill", "#4b5563");
       
-      // Add view mode indicator
+      instructionGroup.appendChild(instructionBg);
+      instructionGroup.appendChild(instructionText);
+      svg.appendChild(instructionGroup);
+      
+      // Add view mode indicator with better styling
+      const viewModeGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      viewModeGroup.setAttribute("transform", `translate(${width - 120}, 20)`);
+      
+      const viewModeBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      viewModeBg.setAttribute("x", "-60");
+      viewModeBg.setAttribute("y", "-15");
+      viewModeBg.setAttribute("width", "170");
+      viewModeBg.setAttribute("height", "25");
+      viewModeBg.setAttribute("rx", "5");
+      viewModeBg.setAttribute("ry", "5");
+      viewModeBg.setAttribute("fill", "rgba(255, 255, 255, 0.8)");
+      viewModeBg.setAttribute("stroke", "#e5e7eb");
+      viewModeBg.setAttribute("stroke-width", "1");
+      
       const viewModeText = document.createElementNS("http://www.w3.org/2000/svg", "text");
       viewModeText.textContent = `View mode: ${viewMode.charAt(0).toUpperCase() + viewMode.slice(1)}`;
-      viewModeText.setAttribute("x", `${width - 100}`);
-      viewModeText.setAttribute("y", "20");
-      viewModeText.setAttribute("font-size", "10");
       viewModeText.setAttribute("text-anchor", "end");
-      viewModeText.setAttribute("fill", "#6b7280");
-      svg.appendChild(viewModeText);
+      viewModeText.setAttribute("font-size", "11");
+      viewModeText.setAttribute("fill", "#4b5563");
+      
+      viewModeGroup.appendChild(viewModeBg);
+      viewModeGroup.appendChild(viewModeText);
+      svg.appendChild(viewModeGroup);
     };
     
     renderFamilyTree();
@@ -561,9 +769,13 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
             <div className="space-y-4">
               <div className="flex items-center space-x-4">
                 <Avatar className="h-16 w-16">
-                  <AvatarFallback className="bg-isn-primary text-white">
-                    {getInitials(selectedMember.name)}
-                  </AvatarFallback>
+                  {selectedMember.profilePicture ? (
+                    <AvatarImage src={selectedMember.profilePicture} alt={selectedMember.name} />
+                  ) : (
+                    <AvatarFallback className="bg-isn-primary text-white">
+                      {getInitials(selectedMember.name)}
+                    </AvatarFallback>
+                  )}
                 </Avatar>
                 <div>
                   <h3 className="text-lg font-semibold">{selectedMember.name}</h3>
@@ -586,7 +798,12 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
                   </div>
                 )}
                 
-                <div className="text-sm">
+                <div className="text-sm col-span-2">
+                  <span className="font-medium">Family Tree ID:</span> 
+                  <span className="ml-2 text-gray-600">{user.familyTreeId}</span>
+                </div>
+                
+                <div className="text-sm col-span-2">
                   <span className="font-medium">Member ID:</span> 
                   <span className="ml-2 text-gray-600">{selectedMember.userId}</span>
                 </div>
@@ -596,7 +813,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
         </DialogContent>
       </Dialog>
       
-      {/* Relationship Details Dialog */}
+      {/* Relationship Details Dialog - Enhanced design */}
       <Dialog open={relationshipDetailsOpen} onOpenChange={(open) => {
         setRelationshipDetailsOpen(open); 
         if (!open) {
@@ -607,8 +824,8 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Relationship Details</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-center">Relationship Details</DialogTitle>
+            <DialogDescription className="text-center">
               How these family members are related to each other
             </DialogDescription>
           </DialogHeader>
@@ -617,8 +834,8 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="text-center">
-                  <Avatar className="h-12 w-12 mx-auto">
-                    <AvatarFallback className="bg-isn-primary text-white">
+                  <Avatar className="h-16 w-16 mx-auto">
+                    <AvatarFallback className="bg-isn-primary text-white text-xl">
                       {getInitials(selectedRelationship.from?.name || '')}
                     </AvatarFallback>
                   </Avatar>
@@ -626,14 +843,19 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
                 </div>
                 
                 <div className="flex flex-col items-center px-4">
-                  <div className="text-xs bg-gray-100 rounded-full px-3 py-1 mb-1">is {selectedRelationship.fromToRelation} of</div>
-                  <div className="w-20 h-0.5 bg-isn-primary"></div>
-                  <div className="text-xs bg-gray-100 rounded-full px-3 py-1 mt-1">is {selectedRelationship.toFromRelation} of</div>
+                  <div className="w-24 h-0.5 bg-isn-primary mb-2"></div>
+                  <div className="text-xs bg-gray-100 rounded-full px-3 py-1 mb-1 font-medium">
+                    sees as
+                  </div>
+                  <div className="text-xs bg-gray-100 rounded-full px-3 py-1 mt-1 font-medium">
+                    sees as
+                  </div>
+                  <div className="w-24 h-0.5 bg-isn-secondary mt-2"></div>
                 </div>
                 
                 <div className="text-center">
-                  <Avatar className="h-12 w-12 mx-auto">
-                    <AvatarFallback className="bg-isn-secondary text-white">
+                  <Avatar className="h-16 w-16 mx-auto">
+                    <AvatarFallback className="bg-isn-secondary text-white text-xl">
                       {getInitials(selectedRelationship.to?.name || '')}
                     </AvatarFallback>
                   </Avatar>
@@ -642,14 +864,22 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
               </div>
               
               <div className="grid grid-cols-2 gap-4 border-t border-gray-200 pt-4">
-                <div>
-                  <p className="text-sm font-medium">{selectedRelationship.from?.name} sees {selectedRelationship.to?.name} as:</p>
-                  <p className="text-lg font-semibold text-isn-primary">{selectedRelationship.fromToRelation}</p>
+                <div className="border rounded-lg p-3 bg-gradient-to-br from-white to-indigo-50">
+                  <p className="text-sm font-medium text-gray-600">
+                    {selectedRelationship.from?.name} sees {selectedRelationship.to?.name} as:
+                  </p>
+                  <p className="text-lg font-semibold text-isn-primary mt-1">
+                    {selectedRelationship.fromToRelation}
+                  </p>
                 </div>
                 
-                <div>
-                  <p className="text-sm font-medium">{selectedRelationship.to?.name} sees {selectedRelationship.from?.name} as:</p>
-                  <p className="text-lg font-semibold text-isn-secondary">{selectedRelationship.toFromRelation}</p>
+                <div className="border rounded-lg p-3 bg-gradient-to-br from-white to-emerald-50">
+                  <p className="text-sm font-medium text-gray-600">
+                    {selectedRelationship.to?.name} sees {selectedRelationship.from?.name} as:
+                  </p>
+                  <p className="text-lg font-semibold text-isn-secondary mt-1">
+                    {selectedRelationship.toFromRelation}
+                  </p>
                 </div>
               </div>
             </div>
