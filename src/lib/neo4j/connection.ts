@@ -4,9 +4,10 @@ import neo4j from 'neo4j-driver';
 
 // Neo4j connection details - Using secure WebSockets protocol
 export const neo4jConfig = {
-  uri: "neo4j+s://c5f5e77a.databases.neo4j.io", // Changed back to neo4j+s:// for secure connections
+  uri: "neo4j+s://26968e7c.databases.neo4j.io",
   username: "neo4j",
-  password: "Oz9qEfjqCAuuRiokV1WGikXxCv8ktaNlZyVdLty4rXY"
+  password: "Ua95yPmaGZAeAeFyQ48iZ67rNQi07gR3eCMtoFvaOIA",
+  database: "neo4j"
 };
 
 // Create Neo4j driver instance with optimized connection pool config
