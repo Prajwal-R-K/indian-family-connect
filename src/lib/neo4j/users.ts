@@ -157,3 +157,32 @@ export const getUserByEmailAndFamilyTree = async (email: string, familyTreeId: s
   console.log(`No user found with email: ${email} in family tree: ${familyTreeId}`);
   return null;
 };
+
+export const updateUserProfile = async (userId: string, profileData: any): Promise<void> => {
+  const cypher = `
+    MATCH (u:User {userId: $userId})
+    SET u.name = $name,
+        u.email = $email,
+        u.phone = $phone,
+        u.address = $address,
+        u.dateOfBirth = $dateOfBirth,
+        u.bio = $bio,
+        u.occupation = $occupation,
+        u.profilePicture = $profilePicture,
+        u.updatedAt = $updatedAt
+    RETURN u
+  `;
+  
+  const result = await runQuery(cypher, {
+    userId,
+    name: profileData.name,
+    email: profileData.email,
+    phone: profileData.phone,
+    address: profileData.address,
+    dateOfBirth: profileData.dateOfBirth,
+    bio: profileData.bio,
+    occupation: profileData.occupation,
+    profilePicture: profileData.profilePicture,
+    updatedAt: new Date().toISOString(),
+  });
+};

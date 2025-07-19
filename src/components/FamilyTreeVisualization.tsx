@@ -144,7 +144,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     }
   };
 
-  // Improved function to handle node click with proper selection/deselection
+  // Enhanced function to handle node click with improved selection logic
   const handleNodeClick = (userId: string) => {
     console.log(`Node clicked: ${userId}, currently selected: ${selectedNode}, previous: ${previousSelectedNode}`);
     
@@ -165,13 +165,15 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       const relationshipShown = findRelationshipBetweenNodes(selectedNode, userId);
       
       if (relationshipShown) {
-        // After showing relationship, update selection state
+        // After showing relationship, keep both nodes selected
         setPreviousSelectedNode(selectedNode);
         setSelectedNode(userId);
+        // Close node details since we're showing relationship
+        setNodeDetailsOpen(false);
       } else {
         // If no relationship found, just update to new node
+        setPreviousSelectedNode(selectedNode);
         setSelectedNode(userId);
-        setPreviousSelectedNode(null);
         
         // Show node details for this node
         const member = familyMembers.find(m => m.userId === userId);
@@ -186,12 +188,24 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     // If this is the first node being selected
     console.log("First node selected, showing details");
     setSelectedNode(userId);
+    setPreviousSelectedNode(null);
     
     // Show node details for this node
     const member = familyMembers.find(m => m.userId === userId);
     if (member) {
       setSelectedMember(member);
       setNodeDetailsOpen(true);
+    }
+  };
+
+  // Handle clicking outside the canvas to deselect nodes
+  const handleCanvasClick = (event: React.MouseEvent) => {
+    // If clicking directly on the canvas (not on a node), deselect all
+    if (event.target === event.currentTarget) {
+      setSelectedNode(null);
+      setPreviousSelectedNode(null);
+      setNodeDetailsOpen(false);
+      setRelationshipDetailsOpen(false);
     }
   };
 

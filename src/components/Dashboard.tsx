@@ -125,10 +125,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   };
   
   const handleViewProfile = () => {
-    toast({
-      title: "Profile",
-      description: "Profile management coming soon!",
-    });
+    navigate('/profile', { state: { user } });
   };
   
   // Toggle view mode function - expanded to include hyper and connected views
@@ -371,11 +368,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 <div className="h-4 w-60 bg-isn-primary/30 rounded"></div>
               </div>
             ) : uniqueFamilyMembers.length > 0 ? (
-              <FamilyTreeVisualization 
-                user={user} 
-                familyMembers={uniqueFamilyMembers} 
-                viewMode={viewMode}
-              />
+              <div className="relative h-full">
+                <FamilyTreeVisualization 
+                  user={user} 
+                  familyMembers={uniqueFamilyMembers} 
+                  viewMode={viewMode}
+                />
+                <Button 
+                  size="sm" 
+                  className="absolute top-2 right-2 bg-isn-primary hover:bg-isn-primary/90"
+                  onClick={() => navigate('/family-tree', { state: { user } })}
+                >
+                  View Full Tree
+                </Button>
+              </div>
             ) : (
               <div className="text-center p-8">
                 <div className="w-20 h-20 mx-auto bg-isn-secondary rounded-full mb-4 flex items-center justify-center text-white">

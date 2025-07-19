@@ -13,6 +13,10 @@ export interface User {
   profession?: string;
   location?: string;
   profilePicture?: string;
+  address?: string;
+  dateOfBirth?: string;
+  bio?: string;
+  occupation?: string;
   myRelationship?: string; // Added missing property for user's relationship in the family
 }
 
