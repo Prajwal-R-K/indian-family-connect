@@ -65,8 +65,12 @@ const RelationshipPage = () => {
   const loadFamilyMembers = async (familyTreeId: string, currentUserId: string) => {
     try {
       const members = await getFamilyMembers(familyTreeId);
-      // Filter out the current user
-      const filteredMembers = members.filter(member => member.userId !== currentUserId);
+      // Filter out the current user and remove any duplicates
+      const filteredMembers = members
+        .filter(member => member.userId !== currentUserId)
+        .filter((member, index, self) => 
+          index === self.findIndex(m => m.userId === member.userId)
+        );
       setFamilyMembers(filteredMembers);
       setIsLoading(false);
     } catch (error) {
