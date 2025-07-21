@@ -1,252 +1,366 @@
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { 
+  Users, 
+  UserPlus, 
+  TreePine, 
+  MessageSquare, 
+  Calendar,
+  Heart,
+  Star,
+  TrendingUp,
+  Activity,
+  Gift,
+  Home,
+  MapPin,
+  Phone,
+  Mail
+} from 'lucide-react';
+import { User } from '@/types';
+import { useNavigate } from 'react-router-dom';
+import { toast } from '@/hooks/use-toast';
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 94.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-  }
+interface DashboardProps {
+  user: User;
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
+const Dashboard: React.FC<DashboardProps> = ({ user }) => {
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    totalMembers: 0,
+    activeConnections: 0,
+    recentActivities: 0,
+    upcomingEvents: 0
+  });
 
-/* Custom styles for Indian Family Connect */
-.isn-primary {
-  color: #6366f1;
-}
+  useEffect(() => {
+    // Simulate loading stats - in real app, this would fetch from API
+    setStats({
+      totalMembers: 24,
+      activeConnections: 18,
+      recentActivities: 12,
+      upcomingEvents: 3
+    });
+  }, []);
 
-.isn-secondary {
-  color: #8b5cf6;
-}
+  const handleNavigateToFamilyTree = () => {
+    navigate('/family-tree');
+  };
 
-.isn-dark {
-  color: #1f2937;
-}
+  const handleNavigateToRelationships = () => {
+    navigate('/relationships');
+  };
 
-.isn-card {
-  border-color: #e5e7eb;
-  transition: all 0.3s ease;
-}
+  const handleNavigateToMessages = () => {
+    navigate('/messages');
+  };
 
-.isn-card:hover {
-  border-color: #6366f1;
-  box-shadow: 0 10px 25px rgba(99, 102, 241, 0.1);
-}
+  const recentActivities = [
+    { id: 1, type: 'join', user: 'Priya Sharma', time: '2 hours ago', description: 'joined the family network' },
+    { id: 2, type: 'update', user: 'Raj Patel', time: '4 hours ago', description: 'updated their profile' },
+    { id: 3, type: 'message', user: 'Anita Kumar', time: '6 hours ago', description: 'sent a family message' },
+    { id: 4, type: 'event', user: 'Vikram Singh', time: '1 day ago', description: 'created an upcoming event' }
+  ];
 
-  .pattern-bg {
-  background-image: 
-    radial-gradient(circle at 25% 25%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 75% 75%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
-}
+  const upcomingEvents = [
+    { id: 1, title: 'Family Reunion 2024', date: 'Dec 25, 2024', attendees: 15 },
+    { id: 2, title: 'Diwali Celebration', date: 'Nov 12, 2024', attendees: 22 },
+    { id: 3, title: 'Birthday Celebration', date: 'Nov 8, 2024', attendees: 8 }
+  ];
 
-/* Enhanced Family Tree Visualization Styles */
-.family-tree-svg {
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
-}
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Welcome Header */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex items-center space-x-4">
+            <Avatar className="h-16 w-16">
+              <AvatarImage src={user.profilePicture} alt={user.firstName} />
+              <AvatarFallback className="bg-indigo-100 text-indigo-600 text-lg font-semibold">
+                {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-gray-900">
+                Welcome back, {user.firstName}!
+              </h1>
+              <p className="text-gray-600 mt-1">
+                Connect with your family and strengthen your bonds
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-500">Member since</p>
+              <p className="font-semibold text-indigo-600">
+                {new Date(user.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+        </div>
 
-.family-tree-svg g {
-  transition: none; /* Remove transitions to prevent shaking */
-}
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+          <Card className="bg-white hover:shadow-lg transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Family Members</CardTitle>
+              <Users className="h-4 w-4 text-indigo-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-indigo-600">{stats.totalMembers}</div>
+              <p className="text-xs text-gray-600">Connected family network</p>
+            </CardContent>
+          </Card>
 
-/* Remove hover effects that cause re-rendering */
-.family-tree-svg g:hover {
-  transform: none;
-  filter: none;
-}
+          <Card className="bg-white hover:shadow-lg transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Connections</CardTitle>
+              <Activity className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{stats.activeConnections}</div>
+              <p className="text-xs text-gray-600">Recently active members</p>
+            </CardContent>
+          </Card>
 
-/* Animated gradient backgrounds */
-@keyframes gradient-shift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
+          <Card className="bg-white hover:shadow-lg transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Recent Activities</CardTitle>
+              <TrendingUp className="h-4 w-4 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{stats.recentActivities}</div>
+              <p className="text-xs text-gray-600">This week</p>
+            </CardContent>
+          </Card>
 
-.gradient-animate {
-  background: linear-gradient(-45deg, #6366f1, #8b5cf6, #06b6d4, #10b981);
-  background-size: 400% 400%;
-  animation: gradient-shift 15s ease infinite;
-}
+          <Card className="bg-white hover:shadow-lg transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Upcoming Events</CardTitle>
+              <Calendar className="h-4 w-4 text-purple-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">{stats.upcomingEvents}</div>
+              <p className="text-xs text-gray-600">Next 30 days</p>
+            </CardContent>
+          </Card>
+        </div>
 
-/* Floating animation for particles */
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-20px);
-  }
-}
+        {/* Quick Actions */}
+        <Card className="bg-white">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5 text-yellow-500" />
+              Quick Actions
+            </CardTitle>
+            <CardDescription>
+              Navigate to key features of your family network
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Button 
+                onClick={handleNavigateToFamilyTree}
+                className="flex items-center gap-2 h-16 bg-indigo-600 hover:bg-indigo-700"
+              >
+                <TreePine className="h-6 w-6" />
+                <div className="text-left">
+                  <div className="font-semibold">Family Tree</div>
+                  <div className="text-sm opacity-90">Explore your lineage</div>
+                </div>
+              </Button>
+              
+              <Button 
+                onClick={handleNavigateToRelationships}
+                variant="outline"
+                className="flex items-center gap-2 h-16 border-indigo-200 hover:bg-indigo-50"
+              >
+                <Heart className="h-6 w-6 text-red-500" />
+                <div className="text-left">
+                  <div className="font-semibold">Relationships</div>
+                  <div className="text-sm text-gray-600">Manage connections</div>
+                </div>
+              </Button>
+              
+              <Button 
+                onClick={handleNavigateToMessages}
+                variant="outline"
+                className="flex items-center gap-2 h-16 border-indigo-200 hover:bg-indigo-50"
+              >
+                <MessageSquare className="h-6 w-6 text-blue-500" />
+                <div className="text-left">
+                  <div className="font-semibold">Messages</div>
+                  <div className="text-sm text-gray-600">Family conversations</div>
+                </div>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-.float-animation {
-  animation: float 6s ease-in-out infinite;
-}
+        {/* Main Content Tabs */}
+        <Tabs defaultValue="activity" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="activity">Recent Activity</TabsTrigger>
+            <TabsTrigger value="events">Upcoming Events</TabsTrigger>
+            <TabsTrigger value="profile">Profile Overview</TabsTrigger>
+          </TabsList>
 
-/* Pulse animation for selected nodes */
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 5px rgba(99, 102, 241, 0.5);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(99, 102, 241, 0.8);
-  }
-}
+          <TabsContent value="activity" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Family Activity</CardTitle>
+                <CardDescription>
+                  Stay updated with what's happening in your family network
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {recentActivities.map((activity) => (
+                    <div key={activity.id} className="flex items-center space-x-4 p-3 rounded-lg hover:bg-gray-50">
+                      <div className="flex-shrink-0">
+                        {activity.type === 'join' && <UserPlus className="h-5 w-5 text-green-500" />}
+                        {activity.type === 'update' && <Activity className="h-5 w-5 text-blue-500" />}
+                        {activity.type === 'message' && <MessageSquare className="h-5 w-5 text-purple-500" />}
+                        {activity.type === 'event' && <Calendar className="h-5 w-5 text-orange-500" />}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">
+                          <span className="font-semibold">{activity.user}</span> {activity.description}
+                        </p>
+                        <p className="text-xs text-gray-500">{activity.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-.pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
-}
+          <TabsContent value="events" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Upcoming Family Events</CardTitle>
+                <CardDescription>
+                  Don't miss these special family gatherings
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {upcomingEvents.map((event) => (
+                    <div key={event.id} className="flex items-center justify-between p-4 rounded-lg border hover:bg-gray-50">
+                      <div className="flex items-center space-x-4">
+                        <div className="flex-shrink-0">
+                          <Gift className="h-8 w-8 text-indigo-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{event.title}</h3>
+                          <p className="text-sm text-gray-600">{event.date}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="secondary">
+                          {event.attendees} attending
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-@keyframes pulse-glow-hover {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); }
-  50% { box-shadow: 0 0 24px 8px rgba(59,130,246,0.4); }
-}
-@keyframes pulse-glow-selected {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255,165,0,0.5); }
-  50% { box-shadow: 0 0 32px 12px rgba(255,165,0,0.7); }
-}
-.animate-pulse-glow-hover { animation: pulse-glow-hover 1.5s infinite; }
-.animate-pulse-glow-selected { animation: pulse-glow-selected 1.5s infinite; }
+          <TabsContent value="profile" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Profile Overview</CardTitle>
+                <CardDescription>
+                  Your family network profile information
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <Home className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Full Name</p>
+                        <p className="text-sm text-gray-600">{user.firstName} {user.lastName}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3">
+                      <Mail className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Email</p>
+                        <p className="text-sm text-gray-600">{user.email}</p>
+                      </div>
+                    </div>
+                    
+                    {user.phone && (
+                      <div className="flex items-center space-x-3">
+                        <Phone className="h-5 w-5 text-gray-400" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Phone</p>
+                          <p className="text-sm text-gray-600">{user.phone}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {user.dateOfBirth && (
+                      <div className="flex items-center space-x-3">
+                        <Calendar className="h-5 w-5 text-gray-400" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Date of Birth</p>
+                          <p className="text-sm text-gray-600">
+                            {new Date(user.dateOfBirth).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {user.location && (
+                      <div className="flex items-center space-x-3">
+                        <MapPin className="h-5 w-5 text-gray-400" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Location</p>
+                          <p className="text-sm text-gray-600">{user.location}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center space-x-3">
+                      <Users className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Member Since</p>
+                        <p className="text-sm text-gray-600">
+                          {new Date(user.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="pt-4 border-t">
+                  <Button 
+                    onClick={() => navigate('/profile')}
+                    className="w-full md:w-auto"
+                  >
+                    Edit Profile
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+};
 
-/* Smooth transitions for all interactive elements */
-* {
-  transition: all 0.2s ease-in-out;
-}
-
-/* Enhanced button hover effects */
-.btn-enhanced {
-  position: relative;
-  overflow: hidden;
-}
-
-.btn-enhanced::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s;
-}
-
-.btn-enhanced:hover::before {
-  left: 100%;
-}
-
-/* Card hover effects */
-.card-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.card-hover:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-
-/* Loading spinner */
-.spinner {
-  border: 3px solid #f3f4f6;
-  border-top: 3px solid #6366f1;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Responsive design improvements */
-@media (max-width: 768px) {
-  .family-tree-svg g:hover {
-    transform: none;
-  }
-  
-  .gradient-animate {
-    background-size: 200% 200%;
-  }
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
+export default Dashboard;
