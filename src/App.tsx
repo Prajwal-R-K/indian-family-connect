@@ -12,7 +12,6 @@ import RelationshipPage from "./pages/RelationshipPage";
 import FamilyTreePage from "./pages/FamilyTreePage";
 import ProfilePage from "./pages/ProfilePage";
 import MessagesPage from "./pages/MessagesPage";
-import GroupViewPage from "./pages/GroupViewPage";
 
 const queryClient = new QueryClient();
 
@@ -30,7 +29,6 @@ const App = () => (
           <Route path="/family-tree" element={<FamilyTreePage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/messages" element={<MessagesPage />} />
-          <Route path="/group-view" element={<GroupViewPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
