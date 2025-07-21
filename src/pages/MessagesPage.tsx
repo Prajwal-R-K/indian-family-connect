@@ -1,26 +1,17 @@
+
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { User } from "@/types";
-import { ArrowLeft, Send, MessageCircle, Users, Search } from "lucide-react";
+import { ArrowLeft, Search, MessageCircle, Users } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getFamilyMembers } from "@/lib/neo4j/family-tree";
-
-interface Message {
-  id: string;
-  from: string;
-  to: string;
-  content: string;
-  timestamp: Date;
-  fromName: string;
-  toName: string;
-}
+import RealTimeMessaging from "@/components/RealTimeMessaging";
 
 interface Conversation {
   userId: string;
@@ -39,8 +30,6 @@ const MessagesPage: React.FC = () => {
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -89,39 +78,6 @@ const MessagesPage: React.FC = () => {
   const handleSelectConversation = (userId: string) => {
     setSelectedConversation(userId);
     
-    // Load mock messages for this conversation
-    const mockMessages: Message[] = [
-      {
-        id: "1",
-        from: userId,
-        to: user.userId,
-        content: "Hey! How are you doing?",
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        fromName: familyMembers.find(m => m.userId === userId)?.name || "Unknown",
-        toName: user.name,
-      },
-      {
-        id: "2",
-        from: user.userId,
-        to: userId,
-        content: "I'm doing well, thanks! How about you?",
-        timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000),
-        fromName: user.name,
-        toName: familyMembers.find(m => m.userId === userId)?.name || "Unknown",
-      },
-      {
-        id: "3",
-        from: userId,
-        to: user.userId,
-        content: "Great! Looking forward to our next family gathering.",
-        timestamp: new Date(Date.now() - 30 * 60 * 1000),
-        fromName: familyMembers.find(m => m.userId === userId)?.name || "Unknown",
-        toName: user.name,
-      },
-    ];
-    
-    setMessages(mockMessages);
-    
     // Clear unread count for this conversation
     setConversations(prev => 
       prev.map(conv => 
@@ -130,37 +86,6 @@ const MessagesPage: React.FC = () => {
           : conv
       )
     );
-  };
-
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedConversation) return;
-
-    const newMsg: Message = {
-      id: Date.now().toString(),
-      from: user.userId,
-      to: selectedConversation,
-      content: newMessage.trim(),
-      timestamp: new Date(),
-      fromName: user.name,
-      toName: familyMembers.find(m => m.userId === selectedConversation)?.name || "Unknown",
-    };
-
-    setMessages(prev => [...prev, newMsg]);
-    setNewMessage("");
-
-    // Update conversation's last message
-    setConversations(prev =>
-      prev.map(conv =>
-        conv.userId === selectedConversation
-          ? { ...conv, lastMessage: newMessage.trim(), lastMessageTime: new Date() }
-          : conv
-      )
-    );
-
-    toast({
-      title: "Message Sent",
-      description: "Your message has been sent successfully.",
-    });
   };
 
   const getNameInitials = (name: string) => {
@@ -185,9 +110,9 @@ const MessagesPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
-      <div className="border-b bg-card">
+      <div className="border-b bg-white/80 backdrop-blur-sm shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -195,14 +120,16 @@ const MessagesPage: React.FC = () => {
                 variant="ghost" 
                 size="sm" 
                 onClick={() => navigate('/dashboard', { state: { user } })}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 hover:bg-blue-50"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Dashboard
               </Button>
               <div>
-                <h1 className="text-2xl font-bold">Family Messages</h1>
-                <p className="text-muted-foreground">Communicate with your family members</p>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Family Messages
+                </h1>
+                <p className="text-muted-foreground">Real-time communication with your family</p>
               </div>
             </div>
             <Badge variant="secondary" className="flex items-center gap-2">
@@ -217,7 +144,7 @@ const MessagesPage: React.FC = () => {
       <div className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[80vh]">
           {/* Conversations List */}
-          <Card className="lg:col-span-1">
+          <Card className="lg:col-span-1 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5" />
@@ -253,24 +180,29 @@ const MessagesPage: React.FC = () => {
                       <div
                         key={conversation.userId}
                         onClick={() => handleSelectConversation(conversation.userId)}
-                        className={`flex items-center space-x-3 p-4 cursor-pointer transition-colors border-b hover:bg-muted/50 ${
-                          selectedConversation === conversation.userId ? 'bg-muted' : ''
+                        className={`flex items-center space-x-3 p-4 cursor-pointer transition-all duration-200 border-b hover:bg-blue-50 ${
+                          selectedConversation === conversation.userId ? 'bg-blue-100 border-l-4 border-l-blue-500' : ''
                         }`}
                       >
-                        <Avatar className="h-10 w-10">
-                          {conversation.profilePicture ? (
-                            <AvatarImage src={conversation.profilePicture} alt={conversation.name} />
-                          ) : (
-                            <AvatarFallback className="bg-primary text-white">
-                              {getNameInitials(conversation.name)}
-                            </AvatarFallback>
-                          )}
-                        </Avatar>
+                        <div className="relative">
+                          <Avatar className="h-10 w-10">
+                            {conversation.profilePicture ? (
+                              <AvatarImage src={conversation.profilePicture} alt={conversation.name} />
+                            ) : (
+                              <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+                                {getNameInitials(conversation.name)}
+                              </AvatarFallback>
+                            )}
+                          </Avatar>
+                          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+                            conversation.status === 'active' ? 'bg-green-500' : 'bg-gray-400'
+                          }`} />
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium truncate">{conversation.name}</p>
                             {conversation.unreadCount > 0 && (
-                              <Badge variant="destructive" className="text-xs">
+                              <Badge variant="destructive" className="text-xs ml-2">
                                 {conversation.unreadCount}
                               </Badge>
                             )}
@@ -296,94 +228,36 @@ const MessagesPage: React.FC = () => {
           </Card>
 
           {/* Chat Area */}
-          <Card className="lg:col-span-2">
+          <div className="lg:col-span-2">
             {selectedConversation && selectedMember ? (
-              <>
-                <CardHeader className="border-b">
-                  <CardTitle className="flex items-center gap-3">
-                    <Avatar className="h-8 w-8">
-                      {selectedMember.profilePicture ? (
-                        <AvatarImage src={selectedMember.profilePicture} alt={selectedMember.name} />
-                      ) : (
-                        <AvatarFallback className="bg-primary text-white text-sm">
-                          {getNameInitials(selectedMember.name)}
-                        </AvatarFallback>
-                      )}
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{selectedMember.name}</p>
-                      <p className="text-xs text-muted-foreground">Active</p>
+              <RealTimeMessaging
+                currentUser={user}
+                selectedUser={selectedMember}
+                onClose={() => setSelectedConversation(null)}
+              />
+            ) : (
+              <Card className="h-full shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+                <CardContent className="h-full flex items-center justify-center">
+                  <div className="text-center max-w-md">
+                    <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <MessageCircle className="h-10 w-10 text-white" />
                     </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0 flex flex-col h-[60vh]">
-                  {/* Messages */}
-                  <ScrollArea className="flex-1 p-4">
-                    <div className="space-y-4">
-                      {messages.map((message) => (
-                        <div
-                          key={message.id}
-                          className={`flex ${message.from === user.userId ? 'justify-end' : 'justify-start'}`}
-                        >
-                          <div
-                            className={`max-w-[70%] rounded-lg p-3 ${
-                              message.from === user.userId
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted'
-                            }`}
-                          >
-                            <p className="text-sm">{message.content}</p>
-                            <p className="text-xs opacity-70 mt-1">
-                              {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-
-                  {/* Message Input */}
-                  <div className="border-t p-4">
-                    <div className="flex space-x-2">
-                      <Textarea
-                        placeholder="Type your message..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        className="flex-1 min-h-[40px] max-h-[120px]"
-                        rows={1}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSendMessage();
-                          }
-                        }}
-                      />
-                      <Button 
-                        onClick={handleSendMessage}
-                        disabled={!newMessage.trim()}
-                        size="sm"
-                        className="self-end"
-                      >
-                        <Send className="h-4 w-4" />
-                      </Button>
+                    <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                      Select a Conversation
+                    </h3>
+                    <p className="text-muted-foreground mb-6">
+                      Choose a family member from the list to start a real-time conversation with enhanced features.
+                    </p>
+                    <div className="flex flex-wrap gap-2 justify-center text-sm text-muted-foreground">
+                      <Badge variant="outline">🔔 Real-time notifications</Badge>
+                      <Badge variant="outline">✓ Read receipts</Badge>
+                      <Badge variant="outline">📱 Mobile friendly</Badge>
                     </div>
                   </div>
                 </CardContent>
-              </>
-            ) : (
-              <CardContent className="h-[60vh] flex items-center justify-center">
-                <div className="text-center">
-                  <MessageCircle className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-muted-foreground mb-2">
-                    Select a Conversation
-                  </h3>
-                  <p className="text-muted-foreground">
-                    Choose a family member from the list to start messaging.
-                  </p>
-                </div>
-              </CardContent>
+              </Card>
             )}
-          </Card>
+          </div>
         </div>
       </div>
     </div>

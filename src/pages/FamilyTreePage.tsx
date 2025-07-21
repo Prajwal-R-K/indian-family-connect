@@ -1,12 +1,14 @@
+
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { User } from "@/types";
-import { ArrowLeft, Home, Settings, MessageCircle, Users, Network, Eye, Star } from "lucide-react";
+import { ArrowLeft, Home, Settings, MessageCircle, Users, Network, Eye, Star, GitBranch } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import FamilyTreeVisualization from "@/components/FamilyTreeVisualization";
+import HybridFamilyGraph from "@/components/HybridFamilyGraph";
 import { getFamilyMembers } from "@/lib/neo4j/family-tree";
 
 const FamilyTreePage: React.FC = () => {
@@ -16,6 +18,7 @@ const FamilyTreePage: React.FC = () => {
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'personal' | 'all' | 'hyper' | 'connected'>('all');
+  const [graphMode, setGraphMode] = useState<'force' | 'tree'>('force');
   
   useEffect(() => {
     if (!user) {
@@ -64,9 +67,9 @@ const FamilyTreePage: React.FC = () => {
     },
     {
       value: 'hyper' as const,
-      label: 'Grouped View',
-      description: 'Clustered by relationships',
-      icon: Network,
+      label: 'Hybrid Graph',
+      description: 'Interactive social network',
+      icon: GitBranch,
       color: 'bg-purple-500'
     },
     {
@@ -183,7 +186,7 @@ const FamilyTreePage: React.FC = () => {
                   Click nodes for details
                 </Badge>
                 <Badge variant="outline" className="text-xs">
-                  Select two for relationship
+                  Drag to rearrange
                 </Badge>
               </div>
             </CardTitle>
@@ -207,11 +210,22 @@ const FamilyTreePage: React.FC = () => {
                   </div>
                 </div>
               ) : familyMembers.length > 0 ? (
-                <FamilyTreeVisualization 
-                  user={user} 
-                  familyMembers={familyMembers} 
-                  viewMode={viewMode}
-                />
+                <>
+                  {viewMode === 'hyper' ? (
+                    <HybridFamilyGraph 
+                      user={user} 
+                      familyMembers={familyMembers}
+                      viewMode={graphMode}
+                      onViewModeChange={setGraphMode}
+                    />
+                  ) : (
+                    <FamilyTreeVisualization 
+                      user={user} 
+                      familyMembers={familyMembers} 
+                      viewMode={viewMode as 'personal' | 'all' | 'hyper'}
+                    />
+                  )}
+                </>
               ) : (
                 <div className="h-full flex items-center justify-center relative z-10">
                   <div className="text-center max-w-md">
