@@ -1,390 +1,252 @@
 
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { User } from "@/types";
-import { 
-  Users, 
-  MessageCircle, 
-  TreePine, 
-  UserPlus, 
-  Bell, 
-  Heart,
-  TrendingUp,
-  Calendar,
-  Gift,
-  Star,
-  Camera,
-  MapPin
-} from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import FamilyTreeVisualization from "./FamilyTreeVisualization";
-import FamilySearchComponent from "./FamilySearchComponent";
-import { getFamilyMembers } from "@/lib/neo4j/family-tree";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-interface DashboardProps {
-  user: User;
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 94.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user }) => {
-  const navigate = useNavigate();
-  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalMembers: 0,
-    activeMembers: 0,
-    pendingInvites: 0,
-    recentConnections: 0
-  });
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
 
-  useEffect(() => {
-    const loadFamilyData = async () => {
-      try {
-        setLoading(true);
-        const members = await getFamilyMembers(user.familyTreeId);
-        setFamilyMembers(members);
-        
-        // Calculate stats
-        const activeCount = members.filter(m => m.status === 'active').length;
-        const pendingCount = members.filter(m => m.status === 'invited').length;
-        
-        setStats({
-          totalMembers: members.length,
-          activeMembers: activeCount,
-          pendingInvites: pendingCount,
-          recentConnections: Math.floor(Math.random() * 5) + 1
-        });
-      } catch (error) {
-        console.error("Error loading family data:", error);
-        toast({
-          title: "Error",
-          description: "Could not load family data. Please try again later.",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+/* Custom styles for Indian Family Connect */
+.isn-primary {
+  color: #6366f1;
+}
 
-    loadFamilyData();
-  }, [user.familyTreeId]);
+.isn-secondary {
+  color: #8b5cf6;
+}
 
-  const completionPercentage = (stats.activeMembers / Math.max(stats.totalMembers, 1)) * 100;
+.isn-dark {
+  color: #1f2937;
+}
 
-  const quickActions = [
-    {
-      title: "View Family Tree",
-      description: "Explore your family connections",
-      icon: TreePine,
-      color: "from-green-500 to-emerald-600",
-      action: () => navigate('/family-tree', { state: { user } })
-    },
-    {
-      title: "Invite Members",
-      description: "Add new family members",
-      icon: UserPlus,
-      color: "from-blue-500 to-cyan-600",
-      action: () => navigate('/dashboard', { state: { user } })
-    },
-    {
-      title: "Messages",
-      description: "Chat with family members",
-      icon: MessageCircle,
-      color: "from-purple-500 to-pink-600",
-      action: () => navigate('/messages', { state: { user } })
-    },
-    {
-      title: "Edit Profile",
-      description: "Update your information",
-      icon: Users,
-      color: "from-orange-500 to-red-600",
-      action: () => navigate('/profile', { state: { user } })
-    }
-  ];
+.isn-card {
+  border-color: #e5e7eb;
+  transition: all 0.3s ease;
+}
 
-  const recentActivity = [
-    { type: 'join', user: 'Priya Sharma', time: '2 hours ago', icon: UserPlus },
-    { type: 'message', user: 'Raj Patel', time: '4 hours ago', icon: MessageCircle },
-    { type: 'photo', user: 'Anita Kumar', time: '1 day ago', icon: Camera },
-    { type: 'birthday', user: 'Vikram Singh', time: '2 days ago', icon: Gift }
-  ];
+.isn-card:hover {
+  border-color: #6366f1;
+  box-shadow: 0 10px 25px rgba(99, 102, 241, 0.1);
+}
 
-  const upcomingEvents = [
-    { title: 'Family Reunion', date: 'Dec 25, 2024', location: 'Mumbai', attendees: 15 },
-    { title: 'Wedding Anniversary', date: 'Jan 5, 2025', location: 'Delhi', attendees: 8 },
-    { title: 'Birthday Celebration', date: 'Jan 12, 2025', location: 'Pune', attendees: 12 }
-  ];
+  .pattern-bg {
+  background-image: 
+    radial-gradient(circle at 25% 25%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+}
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Welcome back, {user.name}! 👋
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Manage your family connections and stay in touch with loved ones
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <FamilySearchComponent />
-            <Button variant="outline" className="relative">
-              <Bell className="h-4 w-4 mr-2" />
-              Notifications
-              <Badge className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs bg-red-500">
-                3
-              </Badge>
-            </Button>
-          </div>
-        </div>
+/* Enhanced Family Tree Visualization Styles */
+.family-tree-svg {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+}
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-blue-50 to-blue-100">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-blue-600">Total Members</p>
-                  <p className="text-3xl font-bold text-blue-700">{stats.totalMembers}</p>
-                </div>
-                <div className="p-3 bg-blue-500 rounded-full">
-                  <Users className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+.family-tree-svg g {
+  transition: none; /* Remove transitions to prevent shaking */
+}
 
-          <Card className="hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-green-50 to-green-100">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-green-600">Active Members</p>
-                  <p className="text-3xl font-bold text-green-700">{stats.activeMembers}</p>
-                </div>
-                <div className="p-3 bg-green-500 rounded-full">
-                  <Heart className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+/* Remove hover effects that cause re-rendering */
+.family-tree-svg g:hover {
+  transform: none;
+  filter: none;
+}
 
-          <Card className="hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-orange-50 to-orange-100">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-orange-600">Pending Invites</p>
-                  <p className="text-3xl font-bold text-orange-700">{stats.pendingInvites}</p>
-                </div>
-                <div className="p-3 bg-orange-500 rounded-full">
-                  <UserPlus className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+/* Animated gradient backgrounds */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
 
-          <Card className="hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-purple-50 to-purple-100">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-purple-600">New Connections</p>
-                  <p className="text-3xl font-bold text-purple-700">{stats.recentConnections}</p>
-                </div>
-                <div className="p-3 bg-purple-500 rounded-full">
-                  <TrendingUp className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+.gradient-animate {
+  background: linear-gradient(-45deg, #6366f1, #8b5cf6, #06b6d4, #10b981);
+  background-size: 400% 400%;
+  animation: gradient-shift 15s ease infinite;
+}
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Quick Actions */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Star className="h-5 w-5 text-yellow-500" />
-                  Quick Actions
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {quickActions.map((action, index) => {
-                    const Icon = action.icon;
-                    return (
-                      <Button
-                        key={index}
-                        variant="outline"
-                        className="h-auto p-4 flex flex-col items-start gap-2 hover:shadow-md transition-all duration-300"
-                        onClick={action.action}
-                      >
-                        <div className={`p-2 rounded-lg bg-gradient-to-r ${action.color}`}>
-                          <Icon className="h-5 w-5 text-white" />
-                        </div>
-                        <div className="text-left">
-                          <p className="font-medium">{action.title}</p>
-                          <p className="text-xs text-muted-foreground">{action.description}</p>
-                        </div>
-                      </Button>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+/* Floating animation for particles */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
 
-            {/* Family Tree Preview */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <TreePine className="h-5 w-5 text-green-600" />
-                    Family Tree Preview
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => navigate('/family-tree', { state: { user } })}
-                  >
-                    View Full Tree
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64 bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg border-2 border-dashed border-blue-200 overflow-hidden">
-                  {loading ? (
-                    <div className="h-full flex items-center justify-center">
-                      <div className="animate-pulse text-muted-foreground">Loading family tree...</div>
-                    </div>
-                  ) : familyMembers.length > 0 ? (
-                    <FamilyTreeVisualization 
-                      user={user} 
-                      familyMembers={familyMembers.slice(0, 8)} 
-                      viewMode="personal"
-                      minHeight="250px"
-                      showControls={false}
-                      defaultNodeRadius={40}
-                      defaultLineWidth={2}
-                      defaultZoom={0.8}
-                    />
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-center">
-                      <div>
-                        <TreePine className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-muted-foreground">No family members yet</p>
-                        <Button 
-                          size="sm" 
-                          className="mt-2"
-                          onClick={() => navigate('/dashboard', { state: { user } })}
-                        >
-                          Invite Members
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+.float-animation {
+  animation: float 6s ease-in-out infinite;
+}
 
-          {/* Right Column */}
-          <div className="space-y-6">
-            {/* Family Progress */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-blue-600" />
-                  Family Network Progress
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Profile Completion</span>
-                    <span>{Math.round(completionPercentage)}%</span>
-                  </div>
-                  <Progress value={completionPercentage} className="h-2" />
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Active Members:</span>
-                    <span className="font-medium">{stats.activeMembers}/{stats.totalMembers}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Pending Invites:</span>
-                    <span className="font-medium">{stats.pendingInvites}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+/* Pulse animation for selected nodes */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(99, 102, 241, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.8);
+  }
+}
 
-            {/* Recent Activity */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Bell className="h-5 w-5 text-orange-600" />
-                  Recent Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {recentActivity.map((activity, index) => {
-                    const Icon = activity.icon;
-                    return (
-                      <div key={index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                        <div className="p-1.5 bg-blue-100 rounded-full">
-                          <Icon className="h-3 w-3 text-blue-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{activity.user}</p>
-                          <p className="text-xs text-muted-foreground">{activity.time}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
 
-            {/* Upcoming Events */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-purple-600" />
-                  Upcoming Events
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {upcomingEvents.map((event, index) => (
-                    <div key={index} className="p-3 border rounded-lg hover:shadow-md transition-shadow">
-                      <h4 className="font-medium text-sm">{event.title}</h4>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        <span>{event.date}</span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
-                        <span>{event.location}</span>
-                        <span>• {event.attendees} attending</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+@keyframes pulse-glow-hover {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); }
+  50% { box-shadow: 0 0 24px 8px rgba(59,130,246,0.4); }
+}
+@keyframes pulse-glow-selected {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,165,0,0.5); }
+  50% { box-shadow: 0 0 32px 12px rgba(255,165,0,0.7); }
+}
+.animate-pulse-glow-hover { animation: pulse-glow-hover 1.5s infinite; }
+.animate-pulse-glow-selected { animation: pulse-glow-selected 1.5s infinite; }
 
-export default Dashboard;
+/* Smooth transitions for all interactive elements */
+* {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Enhanced button hover effects */
+.btn-enhanced {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-enhanced::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.btn-enhanced:hover::before {
+  left: 100%;
+}
+
+/* Card hover effects */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Loading spinner */
+.spinner {
+  border: 3px solid #f3f4f6;
+  border-top: 3px solid #6366f1;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive design improvements */
+@media (max-width: 768px) {
+  .family-tree-svg g:hover {
+    transform: none;
+  }
+  
+  .gradient-animate {
+    background-size: 200% 200%;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
