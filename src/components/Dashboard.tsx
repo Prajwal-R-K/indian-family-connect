@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -81,14 +80,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
           <div className="flex items-center space-x-4">
             <Avatar className="h-16 w-16">
-              <AvatarImage src={user.profilePicture} alt={user.firstName} />
+              <AvatarImage src={user.profilePicture} alt={user.name} />
               <AvatarFallback className="bg-indigo-100 text-indigo-600 text-lg font-semibold">
-                {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                {user.name?.charAt(0) || 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-gray-900">
-                Welcome back, {user.firstName}!
+                Welcome back, {user.name}!
               </h1>
               <p className="text-gray-600 mt-1">
                 Connect with your family and strengthen your bonds
@@ -97,7 +96,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             <div className="text-right">
               <p className="text-sm text-gray-500">Member since</p>
               <p className="font-semibold text-indigo-600">
-                {new Date(user.createdAt).toLocaleDateString()}
+                {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
               </p>
             </div>
           </div>
@@ -288,7 +287,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                       <Home className="h-5 w-5 text-gray-400" />
                       <div>
                         <p className="text-sm font-medium text-gray-900">Full Name</p>
-                        <p className="text-sm text-gray-600">{user.firstName} {user.lastName}</p>
+                        <p className="text-sm text-gray-600">{user.name}</p>
                       </div>
                     </div>
                     
@@ -339,7 +338,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                       <div>
                         <p className="text-sm font-medium text-gray-900">Member Since</p>
                         <p className="text-sm text-gray-600">
-                          {new Date(user.createdAt).toLocaleDateString()}
+                          {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                         </p>
                       </div>
                     </div>
