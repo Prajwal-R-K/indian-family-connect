@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { ForceGraph2D } from 'react-force-graph';
+import ForceGraph2D from 'react-force-graph-2d';
 import * as d3 from 'd3';
 import { User } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
