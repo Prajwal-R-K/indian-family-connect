@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Search, Users, UserPlus, Bell, Send, Family } from "lucide-react";
+import { Search, Users, UserPlus, Bell, Send } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface SearchResult {
@@ -201,7 +200,7 @@ const FamilySearchComponent: React.FC<FamilySearchComponentProps> = ({ user }) =
                       <div className="flex items-center gap-2">
                         <h4 className="font-medium text-sm">{result.name}</h4>
                         <Badge variant="outline" className="text-xs">
-                          {result.type === 'user' ? <Users className="h-3 w-3 mr-1" /> : <Family className="h-3 w-3 mr-1" />}
+                          {result.type === 'user' ? <Users className="h-3 w-3 mr-1" /> : <Users className="h-3 w-3 mr-1" />}
                           {result.type}
                         </Badge>
                       </div>

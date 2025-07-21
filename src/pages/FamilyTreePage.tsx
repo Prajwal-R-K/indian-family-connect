@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +16,7 @@ const FamilyTreePage: React.FC = () => {
   const user = location.state?.user as User;
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'personal' | 'all' | 'hyper' | 'connected'>('all');
+  const [viewMode, setViewMode] = useState<'personal' | 'all' | 'hyper'>('all');
   const [hybridMode, setHybridMode] = useState<'force-directed' | 'hierarchical'>('force-directed');
   
   useEffect(() => {
@@ -71,13 +70,6 @@ const FamilyTreePage: React.FC = () => {
       description: 'Interactive hybrid visualization',
       icon: Network,
       color: 'bg-purple-500'
-    },
-    {
-      value: 'connected' as const,
-      label: 'Connected Trees',
-      description: 'Cross-family connections',
-      icon: Star,
-      color: 'bg-orange-500'
     }
   ];
 
