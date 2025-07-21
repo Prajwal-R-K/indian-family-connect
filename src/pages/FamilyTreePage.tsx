@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { User } from "@/types";
-import { ArrowLeft, Home, Settings, MessageCircle } from "lucide-react";
+import { ArrowLeft, Home, Settings, MessageCircle, Users, Network, Eye, Star } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import FamilyTreeVisualization from "@/components/FamilyTreeVisualization";
 import { getFamilyMembers } from "@/lib/neo4j/family-tree";
@@ -14,6 +15,7 @@ const FamilyTreePage: React.FC = () => {
   const user = location.state?.user as User;
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'personal' | 'all' | 'hyper' | 'connected'>('all');
   
   useEffect(() => {
     if (!user) {
@@ -45,10 +47,41 @@ const FamilyTreePage: React.FC = () => {
     return null;
   }
 
+  const viewModeOptions = [
+    {
+      value: 'personal' as const,
+      label: 'Personal View',
+      description: 'Your direct connections',
+      icon: Eye,
+      color: 'bg-blue-500'
+    },
+    {
+      value: 'all' as const,
+      label: 'Full Tree',
+      description: 'Complete family network',
+      icon: Users,
+      color: 'bg-green-500'
+    },
+    {
+      value: 'hyper' as const,
+      label: 'Grouped View',
+      description: 'Clustered by relationships',
+      icon: Network,
+      color: 'bg-purple-500'
+    },
+    {
+      value: 'connected' as const,
+      label: 'Connected Trees',
+      description: 'Cross-family connections',
+      icon: Star,
+      color: 'bg-orange-500'
+    }
+  ];
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-card">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      {/* Enhanced Header */}
+      <div className="border-b bg-white/80 backdrop-blur-sm shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -56,13 +89,15 @@ const FamilyTreePage: React.FC = () => {
                 variant="ghost" 
                 size="sm" 
                 onClick={() => navigate('/dashboard', { state: { user } })}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 hover:bg-blue-50"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Dashboard
               </Button>
               <div>
-                <h1 className="text-2xl font-bold">Family Tree Visualization</h1>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Family Tree Visualization
+                </h1>
                 <p className="text-muted-foreground">Interactive view of your family connections</p>
               </div>
             </div>
@@ -71,7 +106,7 @@ const FamilyTreePage: React.FC = () => {
                 variant="outline" 
                 size="sm"
                 onClick={() => navigate('/messages', { state: { user } })}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 hover:bg-blue-50"
               >
                 <MessageCircle className="h-4 w-4" />
                 Messages
@@ -80,7 +115,7 @@ const FamilyTreePage: React.FC = () => {
                 variant="outline" 
                 size="sm"
                 onClick={() => navigate('/dashboard', { state: { user } })}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 hover:bg-blue-50"
               >
                 <Home className="h-4 w-4" />
                 Dashboard
@@ -90,44 +125,136 @@ const FamilyTreePage: React.FC = () => {
         </div>
       </div>
 
+      {/* View Mode Selector */}
+      <div className="container mx-auto px-4 py-4">
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Visualization Options
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {viewModeOptions.map((option) => {
+                const Icon = option.icon;
+                return (
+                  <Button
+                    key={option.value}
+                    variant={viewMode === option.value ? "default" : "outline"}
+                    className={`h-auto p-4 flex flex-col items-center gap-2 ${
+                      viewMode === option.value 
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white border-0' 
+                        : 'hover:bg-blue-50'
+                    }`}
+                    onClick={() => setViewMode(option.value)}
+                  >
+                    <Icon className={`h-5 w-5 ${viewMode === option.value ? 'text-white' : 'text-blue-500'}`} />
+                    <div className="text-center">
+                      <div className="font-medium text-sm">{option.label}</div>
+                      <div className="text-xs opacity-80">{option.description}</div>
+                    </div>
+                  </Button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
-        <Card className="w-full">
+      <div className="container mx-auto px-4 pb-8">
+        <Card className="w-full shadow-lg border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Your Family Tree</span>
-              <div className="text-sm text-muted-foreground">
-                Click on a node to view details • Select two nodes to view relationship • Click anywhere to deselect
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg">
+                  <Users className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <span className="text-xl font-bold">Your Family Tree</span>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {familyMembers.length} family members • {viewModeOptions.find(v => v.value === viewMode)?.label}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">
+                  Click nodes for details
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  Select two for relationship
+                </Badge>
               </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[80vh] w-full bg-muted/20 rounded-lg border">
+            <div className="h-[75vh] w-full bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg border-2 border-dashed border-blue-200 relative overflow-hidden">
+              {/* Background Pattern */}
+              <div className="absolute inset-0 opacity-5">
+                <div className="absolute inset-0" style={{
+                  backgroundImage: `radial-gradient(circle at 1px 1px, #6366f1 1px, transparent 0)`,
+                  backgroundSize: '20px 20px'
+                }}></div>
+              </div>
+              
               {loading ? (
-                <div className="h-full flex items-center justify-center">
-                  <div className="animate-pulse flex flex-col items-center">
-                    <div className="w-20 h-20 bg-primary/30 rounded-full mb-4"></div>
-                    <div className="h-4 w-40 bg-primary/30 rounded mb-2"></div>
-                    <div className="h-4 w-60 bg-primary/30 rounded"></div>
+                <div className="h-full flex items-center justify-center relative z-10">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                    <div className="text-lg font-medium text-gray-600 mb-2">Loading Family Tree</div>
+                    <div className="text-sm text-gray-500">Gathering your family connections...</div>
                   </div>
                 </div>
               ) : familyMembers.length > 0 ? (
                 <FamilyTreeVisualization 
                   user={user} 
                   familyMembers={familyMembers} 
-                  viewMode="all"
+                  viewMode={viewMode}
                 />
               ) : (
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-center">
-                    <h3 className="text-lg font-medium text-muted-foreground mb-2">No Family Members Found</h3>
-                    <p className="text-muted-foreground mb-4">Start by adding family members to see your tree.</p>
-                    <Button onClick={() => navigate('/dashboard', { state: { user } })}>
+                <div className="h-full flex items-center justify-center relative z-10">
+                  <div className="text-center max-w-md">
+                    <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <Users className="h-10 w-10 text-white" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-800 mb-2">No Family Members Found</h3>
+                    <p className="text-gray-600 mb-6">
+                      Start by adding family members to see your beautiful family tree visualization.
+                    </p>
+                    <Button 
+                      onClick={() => navigate('/dashboard', { state: { user } })}
+                      className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+                    >
                       Go to Dashboard
                     </Button>
                   </div>
                 </div>
               )}
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Legend */}
+        <Card className="mt-6">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
+                <span>You (Main User)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full"></div>
+                <span>Family Members</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full"></div>
+                <span>Selected Node</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
+                <span>Active Status</span>
+              </div>
             </div>
           </CardContent>
         </Card>
