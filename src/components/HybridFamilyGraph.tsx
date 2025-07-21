@@ -1,6 +1,5 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import ForceGraph2D from 'react-force-graph-2d';
 import * as d3 from 'd3';
 import { User } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,32 +11,26 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { 
   Search, 
   Filter, 
-  Maximize2, 
   RotateCcw, 
   Users, 
   Heart,
   Crown,
-  Briefcase,
   GraduationCap,
   TreePine,
   GitBranch
 } from "lucide-react";
 import { getFamilyRelationships } from '@/lib/neo4j/family-tree';
 
-interface GraphNode {
+interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
   name: string;
   type: 'family' | 'friend' | 'mentor' | 'cultural';
   relationship?: string;
   profilePicture?: string;
   status: string;
-  x?: number;
-  y?: number;
-  fx?: number;
-  fy?: number;
 }
 
-interface GraphLink {
+interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
   source: string | GraphNode;
   target: string | GraphNode;
   relation: string;
@@ -58,14 +51,14 @@ const HybridFamilyGraph: React.FC<HybridFamilyGraphProps> = ({
   viewMode,
   onViewModeChange
 }) => {
-  const fgRef = useRef<any>();
+  const svgRef = useRef<SVGSVGElement>(null);
   const [graphData, setGraphData] = useState<{ nodes: GraphNode[], links: GraphLink[] }>({ nodes: [], links: [] });
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'family' | 'friend' | 'mentor' | 'cultural'>('all');
   const [showNodeDetails, setShowNodeDetails] = useState(false);
   const [relationships, setRelationships] = useState<any[]>([]);
+  const [simulation, setSimulation] = useState<d3.Simulation<GraphNode, GraphLink> | null>(null);
 
   // Color schemes for different node types
   const nodeColors = {
@@ -145,8 +138,8 @@ const HybridFamilyGraph: React.FC<HybridFamilyGraphProps> = ({
         : nodes.filter(node => node.type === filterType || node.id === user.userId);
 
       const filteredLinks = links.filter(link => {
-        const sourceNode = filteredNodes.find(n => n.id === link.source);
-        const targetNode = filteredNodes.find(n => n.id === link.target);
+        const sourceNode = filteredNodes.find(n => n.id === (typeof link.source === 'string' ? link.source : link.source.id));
+        const targetNode = filteredNodes.find(n => n.id === (typeof link.target === 'string' ? link.target : link.target.id));
         return sourceNode && targetNode;
       });
 
@@ -180,85 +173,104 @@ const HybridFamilyGraph: React.FC<HybridFamilyGraphProps> = ({
     return '#6b7280';
   };
 
-  // Custom node rendering
-  const nodeCanvasObject = useCallback((node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
-    const label = node.name;
-    const fontSize = 12 / globalScale;
-    const nodeRadius = 8;
+  // Initialize D3 visualization
+  useEffect(() => {
+    if (!svgRef.current || !graphData.nodes.length) return;
 
-    // Draw node circle with type-based color
-    ctx.beginPath();
-    ctx.arc(node.x!, node.y!, nodeRadius, 0, 2 * Math.PI);
-    ctx.fillStyle = node.id === user.userId ? '#fbbf24' : nodeColors[node.type];
-    ctx.fill();
+    const svg = d3.select(svgRef.current);
+    const width = 800;
+    const height = 600;
 
-    // Add border for selected/hovered nodes
-    if (selectedNode?.id === node.id || hoveredNode?.id === node.id) {
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 3 / globalScale;
-      ctx.stroke();
-    }
+    // Clear previous content
+    svg.selectAll("*").remove();
 
-    // Add status indicator
-    if (node.status === 'active') {
-      ctx.beginPath();
-      ctx.arc(node.x! + 6, node.y! - 6, 3, 0, 2 * Math.PI);
-      ctx.fillStyle = '#10b981';
-      ctx.fill();
-    }
+    // Create simulation
+    const sim = d3.forceSimulation<GraphNode>(graphData.nodes)
+      .force("link", d3.forceLink<GraphNode, GraphLink>(graphData.links).id(d => d.id).distance(80))
+      .force("charge", d3.forceManyBody().strength(-200))
+      .force("center", d3.forceCenter(width / 2, height / 2));
 
-    // Draw label
-    ctx.fillStyle = '#1f2937';
-    ctx.font = `${fontSize}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.fillText(label, node.x!, node.y! + nodeRadius + fontSize);
+    setSimulation(sim);
 
-    // Add crown for main user
-    if (node.id === user.userId) {
-      ctx.fillStyle = '#fbbf24';
-      ctx.font = `${fontSize * 1.5}px Arial`;
-      ctx.fillText('👑', node.x!, node.y! - nodeRadius - 5);
-    }
-  }, [user.userId, selectedNode, hoveredNode, nodeColors]);
+    // Create links
+    const link = svg.append("g")
+      .selectAll("line")
+      .data(graphData.links)
+      .enter()
+      .append("line")
+      .attr("stroke", d => d.color || '#999')
+      .attr("stroke-width", d => (d.strength || 0.5) * 4)
+      .attr("stroke-opacity", 0.6);
 
-  // Handle node clicks
-  const handleNodeClick = useCallback((node: GraphNode) => {
-    setSelectedNode(node);
-    setShowNodeDetails(true);
-  }, []);
+    // Create nodes
+    const node = svg.append("g")
+      .selectAll("circle")
+      .data(graphData.nodes)
+      .enter()
+      .append("circle")
+      .attr("r", 15)
+      .attr("fill", d => d.id === user.userId ? '#fbbf24' : nodeColors[d.type])
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 2)
+      .style("cursor", "pointer")
+      .call(d3.drag<SVGCircleElement, GraphNode>()
+        .on("start", (event, d) => {
+          if (!event.active) sim.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        })
+        .on("drag", (event, d) => {
+          d.fx = event.x;
+          d.fy = event.y;
+        })
+        .on("end", (event, d) => {
+          if (!event.active) sim.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        }))
+      .on("click", (event, d) => {
+        setSelectedNode(d);
+        setShowNodeDetails(true);
+      });
 
-  // Handle node hover
-  const handleNodeHover = useCallback((node: GraphNode | null) => {
-    setHoveredNode(node);
-  }, []);
+    // Add labels
+    const label = svg.append("g")
+      .selectAll("text")
+      .data(graphData.nodes)
+      .enter()
+      .append("text")
+      .text(d => d.name)
+      .attr("font-size", 12)
+      .attr("text-anchor", "middle")
+      .attr("dy", 25)
+      .attr("fill", "#333");
+
+    // Update positions on simulation tick
+    sim.on("tick", () => {
+      link
+        .attr("x1", d => (d.source as GraphNode).x!)
+        .attr("y1", d => (d.source as GraphNode).y!)
+        .attr("x2", d => (d.target as GraphNode).x!)
+        .attr("y2", d => (d.target as GraphNode).y!);
+
+      node
+        .attr("cx", d => d.x!)
+        .attr("cy", d => d.y!);
+
+      label
+        .attr("x", d => d.x!)
+        .attr("y", d => d.y!);
+    });
+
+    return () => {
+      sim.stop();
+    };
+  }, [graphData, user.userId, nodeColors]);
 
   // Search functionality
   const filteredNodes = graphData.nodes.filter(node =>
     node.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  // Highlight searched nodes
-  useEffect(() => {
-    if (searchTerm && fgRef.current) {
-      const matchedNode = filteredNodes[0];
-      if (matchedNode) {
-        fgRef.current.centerAt(matchedNode.x, matchedNode.y, 1000);
-        fgRef.current.zoom(2, 1000);
-      }
-    }
-  }, [searchTerm, filteredNodes]);
-
-  // Layout configurations
-  const forceConfig = {
-    d3AlphaDecay: 0.02,
-    d3VelocityDecay: 0.3,
-    d3Force: (simulation: any) => {
-      simulation
-        .force('charge', d3.forceManyBody().strength(-200))
-        .force('center', d3.forceCenter())
-        .force('link', d3.forceLink().distance(80).strength(0.1));
-    }
-  };
 
   return (
     <div className="w-full h-full relative">
@@ -329,8 +341,8 @@ const HybridFamilyGraph: React.FC<HybridFamilyGraphProps> = ({
             variant="outline"
             size="sm"
             onClick={() => {
-              if (fgRef.current) {
-                fgRef.current.zoomToFit(1000);
+              if (simulation) {
+                simulation.alpha(1).restart();
               }
             }}
             className="w-full"
@@ -364,30 +376,12 @@ const HybridFamilyGraph: React.FC<HybridFamilyGraphProps> = ({
       </Card>
 
       {/* Graph Container */}
-      <div className="w-full h-full bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg overflow-hidden">
-        <ForceGraph2D
-          ref={fgRef}
-          graphData={graphData}
-          nodeCanvasObject={nodeCanvasObject}
-          nodeRelSize={8}
-          nodeLabel={(node: GraphNode) => `${node.name} (${node.type})`}
-          linkLabel={(link: GraphLink) => link.relation}
-          linkColor={(link: GraphLink) => link.color || '#94a3b8'}
-          linkWidth={(link: GraphLink) => (link.strength || 0.5) * 4}
-          linkDirectionalParticles={2}
-          linkDirectionalParticleSpeed={0.006}
-          onNodeClick={handleNodeClick}
-          onNodeHover={handleNodeHover}
-          onLinkHover={(link: GraphLink | null) => {
-            if (fgRef.current && link) {
-              fgRef.current.linkHoverPrecision(10);
-            }
-          }}
-          cooldownTicks={100}
-          onEngineStop={() => fgRef.current?.zoomToFit(400)}
-          {...(viewMode === 'force' ? forceConfig : {})}
-          width={window.innerWidth * 0.75}
-          height={window.innerHeight * 0.7}
+      <div className="w-full h-full bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg overflow-hidden flex items-center justify-center">
+        <svg
+          ref={svgRef}
+          width={800}
+          height={600}
+          className="border border-gray-200 rounded-lg bg-white shadow-inner"
         />
       </div>
 
@@ -431,7 +425,6 @@ const HybridFamilyGraph: React.FC<HybridFamilyGraphProps> = ({
 
               <div className="flex gap-2">
                 <Button size="sm" className="flex-1">
-                  <Briefcase className="h-4 w-4 mr-2" />
                   View Profile
                 </Button>
                 <Button variant="outline" size="sm" className="flex-1">
