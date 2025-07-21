@@ -36,12 +36,13 @@ export const getFamilyMembers = async (familyTreeId: string) => {
   try {
     console.log(`Fetching family members for tree: ${familyTreeId}`);
     
-    // Query to get all users in a family tree including relationship info
+    // Query to get all users in a family tree including relationship info - fixed to prevent duplicates
     const cypher = `
       MATCH (u:User {familyTreeId: $familyTreeId})
       OPTIONAL MATCH (creator:User)-[r:RELATES_TO]->(u)
-      RETURN u.userId AS userId, u.name AS name, u.email AS email, u.status AS status, 
-             u.myRelationship as myRelationship, r.relationship AS relationship, creator.userId AS createdBy,
+      WITH u, creator, collect(r.relationship)[0] AS relationship
+      RETURN DISTINCT u.userId AS userId, u.name AS name, u.email AS email, u.status AS status, 
+             u.myRelationship as myRelationship, relationship AS relationship, creator.userId AS createdBy,
              u.profilePicture as profilePicture
     `;
     
