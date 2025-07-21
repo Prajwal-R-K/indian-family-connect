@@ -28,6 +28,10 @@ interface GraphNode extends d3.SimulationNodeDatum {
   relationship?: string;
   profilePicture?: string;
   status: string;
+  x?: number;
+  y?: number;
+  fx?: number | null;
+  fy?: number | null;
 }
 
 interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
@@ -248,18 +252,18 @@ const HybridFamilyGraph: React.FC<HybridFamilyGraphProps> = ({
     // Update positions on simulation tick
     sim.on("tick", () => {
       link
-        .attr("x1", d => (d.source as GraphNode).x!)
-        .attr("y1", d => (d.source as GraphNode).y!)
-        .attr("x2", d => (d.target as GraphNode).x!)
-        .attr("y2", d => (d.target as GraphNode).y!);
+        .attr("x1", d => (d.source as GraphNode).x || 0)
+        .attr("y1", d => (d.source as GraphNode).y || 0)
+        .attr("x2", d => (d.target as GraphNode).x || 0)
+        .attr("y2", d => (d.target as GraphNode).y || 0);
 
       node
-        .attr("cx", d => d.x!)
-        .attr("cy", d => d.y!);
+        .attr("cx", d => d.x || 0)
+        .attr("cy", d => d.y || 0);
 
       label
-        .attr("x", d => d.x!)
-        .attr("y", d => d.y!);
+        .attr("x", d => d.x || 0)
+        .attr("y", d => d.y || 0);
     });
 
     return () => {
