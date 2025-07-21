@@ -74,20 +74,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     { id: 3, title: 'Birthday Celebration', date: 'Nov 8, 2024', attendees: 8 }
   ];
 
-  // Helper function to get user initials from name
-  const getUserInitials = (name: string) => {
-    const nameParts = name.split(' ');
-    if (nameParts.length >= 2) {
-      return nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0);
-    }
-    return name.charAt(0).toUpperCase();
-  };
-
-  // Helper function to get first name from full name
-  const getFirstName = (name: string) => {
-    return name.split(' ')[0];
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -95,14 +81,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
           <div className="flex items-center space-x-4">
             <Avatar className="h-16 w-16">
-              <AvatarImage src={user.profilePicture} alt={user.name} />
+              <AvatarImage src={user.profilePicture} alt={user.firstName} />
               <AvatarFallback className="bg-indigo-100 text-indigo-600 text-lg font-semibold">
-                {getUserInitials(user.name)}
+                {user.firstName.charAt(0)}{user.lastName.charAt(0)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-gray-900">
-                Welcome back, {getFirstName(user.name)}!
+                Welcome back, {user.firstName}!
               </h1>
               <p className="text-gray-600 mt-1">
                 Connect with your family and strengthen your bonds
@@ -111,7 +97,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             <div className="text-right">
               <p className="text-sm text-gray-500">Member since</p>
               <p className="font-semibold text-indigo-600">
-                {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Recently'}
+                {new Date(user.createdAt).toLocaleDateString()}
               </p>
             </div>
           </div>
@@ -302,7 +288,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                       <Home className="h-5 w-5 text-gray-400" />
                       <div>
                         <p className="text-sm font-medium text-gray-900">Full Name</p>
-                        <p className="text-sm text-gray-600">{user.name}</p>
+                        <p className="text-sm text-gray-600">{user.firstName} {user.lastName}</p>
                       </div>
                     </div>
                     
@@ -353,7 +339,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                       <div>
                         <p className="text-sm font-medium text-gray-900">Member Since</p>
                         <p className="text-sm text-gray-600">
-                          {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Recently'}
+                          {new Date(user.createdAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
