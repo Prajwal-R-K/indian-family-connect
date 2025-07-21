@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import { User } from "@/types";
 import { ArrowLeft, Home, Settings, MessageCircle, Users, Network, Eye, Star } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import FamilyTreeVisualization from "@/components/FamilyTreeVisualization";
+import HybridFamilyGraph from "@/components/HybridFamilyGraph";
 import { getFamilyMembers } from "@/lib/neo4j/family-tree";
 
 const FamilyTreePage: React.FC = () => {
@@ -16,6 +18,7 @@ const FamilyTreePage: React.FC = () => {
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'personal' | 'all' | 'hyper' | 'connected'>('all');
+  const [hybridMode, setHybridMode] = useState<'force-directed' | 'hierarchical'>('force-directed');
   
   useEffect(() => {
     if (!user) {
@@ -64,8 +67,8 @@ const FamilyTreePage: React.FC = () => {
     },
     {
       value: 'hyper' as const,
-      label: 'Grouped View',
-      description: 'Clustered by relationships',
+      label: 'Hybrid Graph',
+      description: 'Interactive hybrid visualization',
       icon: Network,
       color: 'bg-purple-500'
     },
@@ -80,7 +83,7 @@ const FamilyTreePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Enhanced Header */}
+      {/* Header */}
       <div className="border-b bg-white/80 backdrop-blur-sm shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -190,14 +193,6 @@ const FamilyTreePage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="h-[75vh] w-full bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg border-2 border-dashed border-blue-200 relative overflow-hidden">
-              {/* Background Pattern */}
-              <div className="absolute inset-0 opacity-5">
-                <div className="absolute inset-0" style={{
-                  backgroundImage: `radial-gradient(circle at 1px 1px, #6366f1 1px, transparent 0)`,
-                  backgroundSize: '20px 20px'
-                }}></div>
-              </div>
-              
               {loading ? (
                 <div className="h-full flex items-center justify-center relative z-10">
                   <div className="text-center">
@@ -207,11 +202,20 @@ const FamilyTreePage: React.FC = () => {
                   </div>
                 </div>
               ) : familyMembers.length > 0 ? (
-                <FamilyTreeVisualization 
-                  user={user} 
-                  familyMembers={familyMembers} 
-                  viewMode={viewMode}
-                />
+                viewMode === 'hyper' ? (
+                  <HybridFamilyGraph 
+                    user={user} 
+                    familyMembers={familyMembers} 
+                    viewMode={hybridMode}
+                    onViewModeChange={setHybridMode}
+                  />
+                ) : (
+                  <FamilyTreeVisualization 
+                    user={user} 
+                    familyMembers={familyMembers} 
+                    viewMode={viewMode}
+                  />
+                )
               ) : (
                 <div className="h-full flex items-center justify-center relative z-10">
                   <div className="text-center max-w-md">
@@ -231,30 +235,6 @@ const FamilyTreePage: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Legend */}
-        <Card className="mt-6">
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
-                <span>You (Main User)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full"></div>
-                <span>Family Members</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full"></div>
-                <span>Selected Node</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
-                <span>Active Status</span>
-              </div>
             </div>
           </CardContent>
         </Card>
