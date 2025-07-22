@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
@@ -166,7 +167,13 @@ const FamilyTreePage = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-96 border rounded-lg">
-                  <FamilyTreeVisualization data={treeData} />
+                  {currentUser && (
+                    <FamilyTreeVisualization 
+                      user={currentUser} 
+                      familyMembers={familyMembers}
+                      viewMode={viewType}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
