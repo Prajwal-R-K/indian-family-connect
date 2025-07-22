@@ -7,12 +7,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
-import DashboardPage from "./pages/DashboardPage";
-import RelationshipPage from "./pages/RelationshipPage";
-import FamilyTreePage from "./pages/FamilyTreePage";
-import ProfilePage from "./pages/ProfilePage";
-import MessagesPage from "./pages/MessagesPage";
-import GroupViewPage from "./pages/GroupViewPage";
 
 const queryClient = new QueryClient();
 
@@ -25,12 +19,6 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<AuthPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/relationships" element={<RelationshipPage />} />
-          <Route path="/family-tree" element={<FamilyTreePage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/messages" element={<MessagesPage />} />
-          <Route path="/group-view" element={<GroupViewPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import InviteMembersForm from "./InviteMembersForm";
+import FamilyTreeBuilder from "./FamilyTreeBuilder";
 import { 
   checkEmailExists, 
   createFamilyTree, 
@@ -77,8 +77,8 @@ interface AuthFormProps {
 const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" }) => {
   const [mode, setMode] = useState<FormMode>(defaultMode);
   const [isLoading, setIsLoading] = useState(false);
-  const [showInviteForm, setShowInviteForm] = useState(false);
-  const [familyMembers, setFamilyMembers] = useState<InviteFormValues[]>([]);
+  const [showFamilyTreeBuilder, setShowFamilyTreeBuilder] = useState(false);
+  const [familyTreeData, setFamilyTreeData] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const { toast } = useToast();
   const [activationStep, setActivationStep] = useState<1 | 2>(1);
@@ -161,15 +161,16 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
   };
 
   const onRegisterSubmit = async (values: RegisterFormValues) => {
-    if (familyMembers.length === 0 && !showInviteForm) {
-      setShowInviteForm(true);
+    if (!familyTreeData && !showFamilyTreeBuilder) {
+      setShowFamilyTreeBuilder(true);
       toast({
-        title: "Add family members",
-        description: "Please add at least one family member to create your family tree",
+        title: "Create your family tree",
+        description: "Please create your family tree to continue",
         variant: "default",
       });
       return;
     }
+    
     setIsLoading(true);
     try {
       const emailExists = await checkEmailExists(values.email);
@@ -182,6 +183,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         setIsLoading(false);
         return;
       }
+      
       const familyTreeId = generateId("FAM");
       const currentDateTime = getCurrentDateTime();
       await createFamilyTree({
@@ -189,6 +191,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         createdBy: values.userId,
         createdAt: currentDateTime
       });
+      
       console.log(`Family tree created with ID: ${familyTreeId}`);
       const hashedPassword = hashPassword(values.password);
       const newUser = await createUser({
@@ -201,36 +204,39 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         createdBy: values.userId,
         createdAt: currentDateTime
       });
+      
       console.log(`User created: ${newUser.userId} (${newUser.email})`);
-      setCurrentUser(newUser);
-      if (familyMembers.length > 0) {
-        console.log(`Processing ${familyMembers.length} family member invitations`);
-        try {
-          const result = await createInvitedUsers(newUser, familyMembers);
-          if (result) {
-            toast({
-              title: "Invitations sent",
-              description: `${familyMembers.length} family members have been invited to join your tree.`,
-              variant: "default",
-            });
-            console.log("All invitations processed successfully");
-          } else {
+      
+      // Process family tree data if available
+      if (familyTreeData && familyTreeData.members) {
+        const familyMembers: InviteFormValues[] = familyTreeData.members
+          .filter((member: any) => member.email && member.email !== values.email)
+          .map((member: any) => ({
+            email: member.email,
+            relationship: member.relationship || 'family'
+          }));
+        
+        if (familyMembers.length > 0) {
+          try {
+            const result = await createInvitedUsers(newUser, familyMembers);
+            if (result) {
+              toast({
+                title: "Invitations sent",
+                description: `${familyMembers.length} family members have been invited to join your tree.`,
+                variant: "default",
+              });
+            }
+          } catch (inviteError) {
+            console.error("Error processing invitations:", inviteError);
             toast({
               title: "Warning",
-              description: "Some invitations might not have been sent successfully",
+              description: "There was an issue sending some invitations",
               variant: "destructive",
             });
-            console.log("Some invitations might not have been sent successfully");
           }
-        } catch (inviteError) {
-          console.error("Error processing invitations:", inviteError);
-          toast({
-            title: "Warning",
-            description: "There was an issue sending some invitations",
-            variant: "destructive",
-          });
         }
       }
+      
       toast({
         title: "Registration successful",
         description: `Welcome to ISN, ${values.name}! Your family tree has been created.`,
@@ -390,26 +396,13 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
     }
   };
 
-  const handleAddFamilyMember = (member: InviteFormValues) => {
-    const emailExists = familyMembers.some(existing => existing.email === member.email);
-    if (emailExists) {
-      toast({
-        title: "Member already added",
-        description: `${member.email} is already in your invite list.`,
-        variant: "destructive",
-      });
-      return;
-    }
-    setFamilyMembers([...familyMembers, member]);
+  const handleFamilyTreeComplete = (treeData: any) => {
+    setFamilyTreeData(treeData);
+    setShowFamilyTreeBuilder(false);
     toast({
-      title: "Family member added",
-      description: `${member.email} will be invited as your ${member.relationship}`,
+      title: "Family tree created",
+      description: "Your family tree has been built. Click 'Create My Family Tree' to complete registration.",
     });
-  };
-
-  const handleRemoveMember = (email: string) => {
-    const updatedMembers = familyMembers.filter(member => member.email !== email);
-    setFamilyMembers(updatedMembers);
   };
 
   const handleTabChange = (value: string) => {
@@ -420,6 +413,9 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
       verifyActivationForm.reset();
       completeActivationForm.reset();
       console.log("Reset both activation forms on tab change to 'activate'");
+    } else if (value === "register") {
+      setShowFamilyTreeBuilder(false);
+      setFamilyTreeData(null);
     }
   };
 
@@ -440,7 +436,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
   }, [activationStep, completeActivationForm]);
 
   return (
-    <Card className="w-full max-w-md mx-auto border-isn-light shadow-xl">
+    <Card className="w-full max-w-4xl mx-auto border-isn-light shadow-xl">
       <CardHeader className="bg-gradient-to-r from-isn-primary to-isn-secondary text-white rounded-t-lg">
         <CardTitle className="text-center text-2xl">
           {mode === "login" ? "Login to ISN" : 
@@ -501,7 +497,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
         
         <TabsContent value="register">
           <CardContent className="pt-6">
-            {!showInviteForm ? (
+            {!showFamilyTreeBuilder ? (
               <Form {...registerForm}>
                 <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-4">
                   <FormField
@@ -571,37 +567,24 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
                   />
                   <Button 
                     type="button" 
-                    onClick={() => setShowInviteForm(true)} 
-                    className="w-full bg-isn-secondary hover:bg-isn-secondary/90"
+                    onClick={() => setShowFamilyTreeBuilder(true)} 
+                    className="w-full bg-isn-primary hover:bg-isn-primary/90"
                   >
-                    Continue to Add Family Members
+                    Create Your Family Tree
                   </Button>
                 </form>
               </Form>
             ) : (
-              <InviteMembersForm 
-                onAddMember={handleAddFamilyMember}
-                onRemoveMember={handleRemoveMember}
-                members={familyMembers}
-                onComplete={() => {
-                  if (familyMembers.length > 0) {
-                    registerForm.handleSubmit(onRegisterSubmit)();
-                  } else {
-                    toast({
-                      title: "Add family members",
-                      description: "Please add at least one family member to create your family tree",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-                onBack={() => setShowInviteForm(false)}
+              <FamilyTreeBuilder 
+                onComplete={handleFamilyTreeComplete}
+                onBack={() => setShowFamilyTreeBuilder(false)}
               />
             )}
           </CardContent>
           <CardFooter className="text-sm text-gray-500 pb-4 px-6">
-            {familyMembers.length > 0 && !showInviteForm && (
+            {familyTreeData && !showFamilyTreeBuilder && (
               <div className="w-full">
-                <p className="mb-2">Family members to invite: {familyMembers.length}</p>
+                <p className="mb-2">Family tree created with {familyTreeData.members?.length || 0} members</p>
                 <Button 
                   type="submit" 
                   onClick={registerForm.handleSubmit(onRegisterSubmit)}
@@ -781,4 +764,3 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
 };
 
 export default AuthForm;
-

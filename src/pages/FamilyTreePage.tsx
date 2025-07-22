@@ -1,265 +1,212 @@
-import React, { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { User } from "@/types";
-import { ArrowLeft, Home, Settings, MessageCircle, Users, Network, Eye, Star } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import FamilyTreeVisualization from "@/components/FamilyTreeVisualization";
-import { getFamilyMembers } from "@/lib/neo4j/family-tree";
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import Layout from '@/components/Layout';
+import FamilyTreeVisualization from '@/components/FamilyTreeVisualization';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { toast } from '@/hooks/use-toast';
+import { User } from '@/types';
+import { getFamilyMembers, getFamilyTreeVisualizationData, getUserPersonalFamilyView, getConnectedFamilyTrees } from '@/lib/neo4j';
 
-const FamilyTreePage: React.FC = () => {
-  const navigate = useNavigate();
+const FamilyTreePage = () => {
   const location = useLocation();
-  const user = location.state?.user as User;
+  const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'personal' | 'all' | 'hyper' | 'connected'>('all');
-  
+  const [treeData, setTreeData] = useState<{ nodes: any[], links: any[] }>({ nodes: [], links: [] });
+  const [viewType, setViewType] = useState<"personal" | "all" | "hyper">("all");
+  const [connectedTrees, setConnectedTrees] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
-    if (!user) {
+    const storedUser = localStorage.getItem('userData');
+    if (storedUser) {
+      setCurrentUser(JSON.parse(storedUser));
+    } else {
       navigate('/auth');
-      return;
     }
-    
-    const loadFamilyData = async () => {
-      try {
-        setLoading(true);
-        const members = await getFamilyMembers(user.familyTreeId);
-        setFamilyMembers(members);
-      } catch (error) {
-        console.error("Error loading family members:", error);
-        toast({
-          title: "Error",
-          description: "Could not load family members. Please try again later.",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
+  }, [navigate]);
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchFamilyData();
+    }
+  }, [currentUser, viewType]);
+
+  const fetchFamilyData = async () => {
+    setIsLoading(true);
+    try {
+      let members: any[] = [];
+      let visualizationData: { nodes: any[], links: any[] } = { nodes: [], links: [] };
+      let connections: any[] = [];
+
+      if (viewType === "personal") {
+        members = await getUserPersonalFamilyView(currentUser.userId, currentUser.familyTreeId);
+        visualizationData = {
+          nodes: members.map(member => ({
+            id: member.userId,
+            name: member.name,
+            status: member.status,
+            profilePicture: member.profilePicture
+          })),
+          links: members.map(member => ({
+            source: currentUser.userId,
+            target: member.userId,
+            type: member.relationship || 'family'
+          }))
+        };
+      } else if (viewType === "hyper") {
+        connections = await getConnectedFamilyTrees(currentUser.familyTreeId);
+        visualizationData = { nodes: [], links: [] }; // No visualization for hyper view
+      } else {
+        members = await getFamilyMembers(currentUser.familyTreeId);
+        visualizationData = await getFamilyTreeVisualizationData(currentUser.familyTreeId);
       }
-    };
-    
-    loadFamilyData();
-  }, [user, navigate]);
 
-  if (!user) {
-    return null;
-  }
-
-  const viewModeOptions = [
-    {
-      value: 'personal' as const,
-      label: 'Personal View',
-      description: 'Your direct connections',
-      icon: Eye,
-      color: 'bg-blue-500'
-    },
-    {
-      value: 'all' as const,
-      label: 'Full Tree',
-      description: 'Complete family network',
-      icon: Users,
-      color: 'bg-green-500'
-    },
-    {
-      value: 'hyper' as const,
-      label: 'Grouped View',
-      description: 'Clustered by relationships',
-      icon: Network,
-      color: 'bg-purple-500'
-    },
-    {
-      value: 'connected' as const,
-      label: 'Connected Trees',
-      description: 'Cross-family connections',
-      icon: Star,
-      color: 'bg-orange-500'
+      setFamilyMembers(members);
+      setTreeData(visualizationData);
+      setConnectedTrees(connections);
+    } catch (error) {
+      console.error("Error fetching family data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load family data.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Enhanced Header */}
-      <div className="border-b bg-white/80 backdrop-blur-sm shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate('/dashboard', { state: { user } })}
-                className="flex items-center gap-2 hover:bg-blue-50"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Dashboard
-              </Button>
+    <Layout>
+      <div className="container mx-auto py-8 px-4">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-isn-primary mb-4">Family Tree</h1>
+          
+          {currentUser && (
+            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-6">
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Family Tree Visualization
-                </h1>
-                <p className="text-muted-foreground">Interactive view of your family connections</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => navigate('/messages', { state: { user } })}
-                className="flex items-center gap-2 hover:bg-blue-50"
-              >
-                <MessageCircle className="h-4 w-4" />
-                Messages
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => navigate('/dashboard', { state: { user } })}
-                className="flex items-center gap-2 hover:bg-blue-50"
-              >
-                <Home className="h-4 w-4" />
-                Dashboard
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* View Mode Selector */}
-      <div className="container mx-auto px-4 py-4">
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Visualization Options
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {viewModeOptions.map((option) => {
-                const Icon = option.icon;
-                return (
-                  <Button
-                    key={option.value}
-                    variant={viewMode === option.value ? "default" : "outline"}
-                    className={`h-auto p-4 flex flex-col items-center gap-2 ${
-                      viewMode === option.value 
-                        ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white border-0' 
-                        : 'hover:bg-blue-50'
-                    }`}
-                    onClick={() => setViewMode(option.value)}
-                  >
-                    <Icon className={`h-5 w-5 ${viewMode === option.value ? 'text-white' : 'text-blue-500'}`} />
-                    <div className="text-center">
-                      <div className="font-medium text-sm">{option.label}</div>
-                      <div className="text-xs opacity-80">{option.description}</div>
-                    </div>
-                  </Button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Content */}
-      <div className="container mx-auto px-4 pb-8">
-        <Card className="w-full shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg">
-                  <Users className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <span className="text-xl font-bold">Your Family Tree</span>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {familyMembers.length} family members • {viewModeOptions.find(v => v.value === viewMode)?.label}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs">
-                  Click nodes for details
+                <h2 className="text-xl font-semibold mb-2">
+                  {currentUser.name}'s Family Tree
+                </h2>
+                <Badge variant="outline" className="mb-4">
+                  Family Tree ID: {currentUser.familyTreeId}
                 </Badge>
-                <Badge variant="outline" className="text-xs">
-                  Select two for relationship
-                </Badge>
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[75vh] w-full bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg border-2 border-dashed border-blue-200 relative overflow-hidden">
-              {/* Background Pattern */}
-              <div className="absolute inset-0 opacity-5">
-                <div className="absolute inset-0" style={{
-                  backgroundImage: `radial-gradient(circle at 1px 1px, #6366f1 1px, transparent 0)`,
-                  backgroundSize: '20px 20px'
-                }}></div>
               </div>
               
-              {loading ? (
-                <div className="h-full flex items-center justify-center relative z-10">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                    <div className="text-lg font-medium text-gray-600 mb-2">Loading Family Tree</div>
-                    <div className="text-sm text-gray-500">Gathering your family connections...</div>
-                  </div>
-                </div>
-              ) : familyMembers.length > 0 ? (
-                <FamilyTreeVisualization 
-                  user={user} 
-                  familyMembers={familyMembers} 
-                  viewMode={viewMode}
-                />
-              ) : (
-                <div className="h-full flex items-center justify-center relative z-10">
-                  <div className="text-center max-w-md">
-                    <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <Users className="h-10 w-10 text-white" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-gray-800 mb-2">No Family Members Found</h3>
-                    <p className="text-gray-600 mb-6">
-                      Start by adding family members to see your beautiful family tree visualization.
-                    </p>
-                    <Button 
-                      onClick={() => navigate('/dashboard', { state: { user } })}
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
-                    >
-                      Go to Dashboard
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Legend */}
-        <Card className="mt-6">
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
-                <span>You (Main User)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full"></div>
-                <span>Family Members</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full"></div>
-                <span>Selected Node</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
-                <span>Active Status</span>
+              <div className="flex gap-4 items-center">
+                <Select value={viewType} onValueChange={(value: "personal" | "all" | "hyper") => setViewType(value)}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Select view" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Members</SelectItem>
+                    <SelectItem value="personal">My View</SelectItem>
+                    <SelectItem value="hyper">Connected Trees</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Button 
+                  onClick={() => navigate('/relationships')}
+                  className="bg-isn-secondary hover:bg-isn-secondary/90"
+                >
+                  Manage Relationships
+                </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-lg">Loading family tree...</div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {viewType === "hyper" && connectedTrees.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Connected Family Trees</CardTitle>
+                  <CardDescription>
+                    Relationships with members from other family trees
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-2">
+                    {connectedTrees.map((connection, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <span className="font-medium">{connection.sourceName}</span>
+                          <span className="text-muted-foreground mx-2">is {connection.type} of</span>
+                          <span className="font-medium">{connection.targetName}</span>
+                        </div>
+                        <Badge variant="secondary">{connection.targetFamilyTreeId}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {viewType === "personal" ? "My Family Relationships" : 
+                   viewType === "all" ? "Complete Family Tree" : 
+                   "Connected Trees View"}
+                </CardTitle>
+                <CardDescription>
+                  {viewType === "personal" ? "Your personal view of family relationships" : 
+                   viewType === "all" ? "All members and relationships in your family tree" : 
+                   "Visualization including connected family trees"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-96 border rounded-lg">
+                  <FamilyTreeVisualization data={treeData} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {familyMembers.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Family Members ({familyMembers.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-3">
+                    {familyMembers.map((member, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-isn-light rounded-full flex items-center justify-center">
+                            {member.name ? member.name.charAt(0).toUpperCase() : '?'}
+                          </div>
+                          <div>
+                            <div className="font-medium">{member.name || 'Pending'}</div>
+                            <div className="text-sm text-muted-foreground">{member.email}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {member.relationship && (
+                            <Badge variant="outline">{member.relationship}</Badge>
+                          )}
+                          <Badge variant={member.status === 'active' ? 'default' : 'secondary'}>
+                            {member.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
       </div>
-    </div>
+    </Layout>
   );
 };
 
