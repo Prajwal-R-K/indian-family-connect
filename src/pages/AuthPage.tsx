@@ -28,19 +28,6 @@ const AuthPage: React.FC = () => {
     }
   }, []);
 
-  const handleAuthSuccess = (userData: User) => {
-    console.log('Auth success with user:', userData);
-    setUser(userData);
-    localStorage.setItem('familyTreeUser', JSON.stringify(userData));
-    
-    // If user is new (invited status), go to builder; otherwise go to dashboard
-    if (userData.status === 'invited') {
-      setCurrentView('builder');
-    } else {
-      setCurrentView('dashboard');
-    }
-  };
-
   const handleTreeBuilderComplete = (familyData: any) => {
     console.log('Family tree completed:', familyData);
     if (user) {
@@ -151,7 +138,7 @@ const AuthPage: React.FC = () => {
         {/* Right side - Auth Form */}
         <div className="flex justify-center lg:justify-end">
           <div className="w-full max-w-md">
-            <AuthForm onSuccess={handleAuthSuccess} />
+            <AuthForm />
           </div>
         </div>
       </div>
