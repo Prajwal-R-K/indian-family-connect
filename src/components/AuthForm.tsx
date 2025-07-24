@@ -1,217 +1,122 @@
-
-import React, { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import FamilyTreeBuilder from "./FamilyTreeBuilder";
-import { 
-  checkEmailExists, 
-  createFamilyTree, 
-  createUser, 
-  getUserByEmailOrId, 
-  hashPassword, 
-  updateUser, 
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  createUser,
   verifyPassword,
-  createInvitedUsers,
-  getUserByEmailAndFamilyTree
+  generateId,
+  getCurrentDateTime,
+  getUserByEmailOrId,
 } from "@/lib/neo4j";
-import { generateId, getCurrentDateTime } from "@/lib/utils";
-import { User, InviteFormValues } from "@/types";
+import { cn } from "@/lib/utils";
+import { Icons } from "@/components/icons";
+import { Separator } from "@/components/ui/separator";
+import { useSearchParams } from "react-router-dom";
+import { PasswordInput } from "./ui/password-input";
+import FamilyTreeBuilder from "./FamilyTreeBuilder";
 
-// Schemas for form validation
-const loginSchema = z.object({
-  identifier: z.string().min(1, "Email or User ID is required"),
-  password: z.string().min(1, "Password is required"),
-});
+interface AuthFormProps extends React.HTMLAttributes<HTMLDivElement> {}
 
-const registerSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  email: z.string().email("Invalid email format"),
-  userId: z.string().min(4, "User ID must be at least 4 characters"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
-
-const updateProfileSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  userId: z.string().min(4, "User ID must be at least 4 characters"),
-  newPassword: z.string().min(8, "Password must be at least 8 characters"),
-  confirmPassword: z.string(),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
-
-type FormMode = "login" | "register";
-type LoginFormValues = z.infer<typeof loginSchema>;
-type RegisterFormValues = z.infer<typeof registerSchema>;
-type UpdateProfileValues = z.infer<typeof updateProfileSchema>;
-
-interface AuthFormProps {
-  onSuccess: (user: User) => void;
-  defaultMode?: FormMode;
-}
-
-const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" }) => {
-  const [mode, setMode] = useState<FormMode>(defaultMode);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showFamilyTreeBuilder, setShowFamilyTreeBuilder] = useState(false);
-  const [familyTreeData, setFamilyTreeData] = useState<any>(null);
-  const [showFirstTimeLogin, setShowFirstTimeLogin] = useState(false);
-  const [firstTimeUser, setFirstTimeUser] = useState<User | null>(null);
+const AuthForm = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
-
-  const loginForm = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      identifier: "",
-      password: "",
-    },
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isRegister, setIsRegister] = useState<boolean>(false);
+  const [showFamilyTreeBuilder, setShowFamilyTreeBuilder] = useState<boolean>(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [searchParams] = useSearchParams();
+  const invitationId = searchParams.get("invitationId");
+  const [input, setInput] = React.useState({
+    name: "",
+    email: "",
+    password: "",
   });
 
-  const registerForm = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      name: "",
-      email: "",
-      userId: "",
-      password: "",
-      confirmPassword: "",
-    },
-  });
+  const isValidEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
-  const updateProfileForm = useForm<UpdateProfileValues>({
-    resolver: zodResolver(updateProfileSchema),
-    defaultValues: {
-      name: "",
-      userId: "",
-      newPassword: "",
-      confirmPassword: "",
-    },
-  });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput({
+      ...input,
+      [e.target.name]: e.target.value,
+    });
+  };
 
-  const onLoginSubmit = async (values: LoginFormValues) => {
+  const handleLogin = async (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    if (!input.email || !input.password) {
+      toast({
+        title: "Missing fields",
+        description: "Please enter all the required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isValidEmail(input.email)) {
+      toast({
+        title: "Invalid email format",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
+
     try {
-      const user = await getUserByEmailOrId(values.identifier);
-      if (!user || user.status !== 'active') {
+      const existingUser = await getUserByEmailOrId(input.email);
+
+      if (!existingUser) {
         toast({
-          title: "Login failed",
-          description: "User not found or account is not active",
+          title: "Invalid credentials",
+          description: "Incorrect email or password.",
           variant: "destructive",
         });
-        setIsLoading(false);
-        return;
-      }
-      
-      if (!user.password || !verifyPassword(values.password, user.password)) {
-        toast({
-          title: "Login failed",
-          description: "Invalid password",
-          variant: "destructive",
-        });
-        setIsLoading(false);
         return;
       }
 
-      // Check if this is a first-time login (user still has temp ID or default name)
-      if (user.userId.startsWith('temp_') || user.name === 'Invited User') {
-        setFirstTimeUser(user);
-        setShowFirstTimeLogin(true);
-        updateProfileForm.setValue('name', user.name === 'Invited User' ? '' : user.name);
-        updateProfileForm.setValue('userId', user.userId.startsWith('temp_') ? '' : user.userId);
-        setIsLoading(false);
+      const isPasswordValid = await verifyPassword(
+        input.password,
+        existingUser.password
+      );
+
+      if (!isPasswordValid) {
+        toast({
+          title: "Invalid credentials",
+          description: "Incorrect email or password.",
+          variant: "destructive",
+        });
         return;
       }
 
+      if (existingUser.status === "invited") {
+        toast({
+          title: "Account not activated",
+          description: "Please activate your account to continue.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      localStorage.setItem("userId", existingUser.userId);
+      localStorage.setItem("userData", JSON.stringify(existingUser));
       toast({
         title: "Login successful",
-        description: `Welcome back, ${user.name}!`,
+        description: "You have successfully logged in.",
       });
-      onSuccess(user);
+      navigate("/dashboard", { state: { user: existingUser } });
     } catch (error) {
       console.error("Login error:", error);
       toast({
         title: "Login failed",
-        description: "An unexpected error occurred",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-    }
-  };
-
-  const onUpdateProfile = async (values: UpdateProfileValues) => {
-    if (!firstTimeUser) return;
-    
-    setIsLoading(true);
-    try {
-      const updateData: Partial<User> = {
-        name: values.name,
-        password: hashPassword(values.newPassword)
-      };
-
-      const updatedUser = await updateUser(firstTimeUser.userId, updateData);
-      
-      if (values.userId && values.userId !== firstTimeUser.userId) {
-        const existingUser = await getUserByEmailOrId(values.userId);
-        if (existingUser) {
-          toast({
-            title: "Profile updated",
-            description: "Your profile is updated but we couldn't change your User ID as it's already taken.",
-            variant: "default",
-          });
-          setIsLoading(false);
-          onSuccess(updatedUser);
-          return;
-        }
-        
-        try {
-          const userWithNewId = await updateUser(updatedUser.userId, {
-            userId: values.userId
-          });
-          toast({
-            title: "Profile updated",
-            description: `Welcome, ${values.name}! Your profile has been updated.`,
-          });
-          onSuccess(userWithNewId);
-        } catch (idUpdateError) {
-          console.error("Failed to update userId:", idUpdateError);
-          toast({
-            title: "Profile updated",
-            description: `Welcome, ${values.name}! Your profile is updated but we couldn't update your User ID.`,
-            variant: "default",
-          });
-          onSuccess(updatedUser);
-        }
-      } else {
-        toast({
-          title: "Profile updated",
-          description: `Welcome, ${values.name}! Your profile has been updated.`,
-        });
-        onSuccess(updatedUser);
-      }
-    } catch (error) {
-      console.error("Profile update error:", error);
-      toast({
-        title: "Update failed",
-        description: "An unexpected error occurred. Please try again.",
+        description: "Failed to log in. Please try again later.",
         variant: "destructive",
       });
     } finally {
@@ -219,347 +124,193 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, defaultMode = "login" })
     }
   };
 
-  const onRegisterSubmit = async (values: RegisterFormValues) => {
-    if (!familyTreeData && !showFamilyTreeBuilder) {
-      setShowFamilyTreeBuilder(true);
+  const handleRegister = async (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    if (!input.name || !input.email || !input.password) {
+      toast({
+        title: "Missing fields",
+        description: "Please enter all the required fields.",
+        variant: "destructive",
+      });
       return;
     }
-    
+
+    if (!isValidEmail(input.email)) {
+      toast({
+        title: "Invalid email format",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
+
     try {
-      const emailExists = await checkEmailExists(values.email);
-      if (emailExists) {
+      const existingUser = await getUserByEmailOrId(input.email);
+      if (existingUser) {
         toast({
-          title: "Registration failed",
-          description: "Email already registered",
+          title: "Email already exists",
+          description: "Please use a different email address.",
           variant: "destructive",
         });
-        setIsLoading(false);
         return;
       }
-      
-      const familyTreeId = generateId("FAM");
-      const currentDateTime = getCurrentDateTime();
-      await createFamilyTree({
-        familyTreeId,
-        createdBy: values.userId,
-        createdAt: currentDateTime
-      });
-      
-      const hashedPassword = hashPassword(values.password);
-      const newUser = await createUser({
-        userId: values.userId,
-        name: values.name,
-        email: values.email,
-        password: hashedPassword,
+
+      const hashedPassword = await createUser({
+        userId: generateId("U"),
+        name: input.name,
+        email: input.email,
+        password: input.password,
         status: "active",
-        familyTreeId,
-        createdBy: values.userId,
-        createdAt: currentDateTime
+        familyTreeId: generateId("FT"),
+        createdBy: "self",
+        createdAt: getCurrentDateTime(),
       });
-      
-      // Process family tree data if available
-      if (familyTreeData && familyTreeData.members) {
-        const familyMembers: InviteFormValues[] = familyTreeData.members
-          .filter((member: any) => member.email && member.email !== values.email)
-          .map((member: any) => ({
-            email: member.email,
-            relationship: member.relationship || 'family'
-          }));
-        
-        if (familyMembers.length > 0) {
-          try {
-            const result = await createInvitedUsers(newUser, familyMembers);
-            if (result) {
-              toast({
-                title: "Invitations sent",
-                description: `${familyMembers.length} family members have been invited to join your tree.`,
-                variant: "default",
-              });
-            }
-          } catch (inviteError) {
-            console.error("Error processing invitations:", inviteError);
-            toast({
-              title: "Warning",
-              description: "There was an issue sending some invitations",
-              variant: "destructive",
-            });
-          }
-        }
-      }
-      
+
+      localStorage.setItem("userId", hashedPassword.userId);
+      localStorage.setItem("userData", JSON.stringify(hashedPassword));
       toast({
         title: "Registration successful",
-        description: `Welcome to ISN, ${values.name}! Your family tree has been created.`,
+        description: "You have successfully registered.",
       });
-      onSuccess(newUser);
+      setCurrentUser(hashedPassword);
+      setShowFamilyTreeBuilder(true);
     } catch (error) {
       console.error("Registration error:", error);
       toast({
         title: "Registration failed",
-        description: "An unexpected error occurred",
+        description: "Failed to register. Please try again later.",
         variant: "destructive",
       });
+    } finally {
       setIsLoading(false);
     }
   };
 
-  const handleFamilyTreeComplete = (treeData: any) => {
-    setFamilyTreeData(treeData);
-    setShowFamilyTreeBuilder(false);
+  const handleFamilyTreeComplete = (familyData: any) => {
+    console.log('Family tree created:', familyData);
     toast({
-      title: "Family tree created",
-      description: "Your family tree has been built. Click 'Create My Family Tree' to complete registration.",
+      title: "Family Tree Created!",
+      description: "Your family tree has been saved successfully.",
+    });
+    
+    // Navigate to dashboard
+    navigate('/dashboard', { 
+      state: { 
+        user: currentUser 
+      } 
     });
   };
 
-  const handleTabChange = (value: string) => {
-    setMode(value as FormMode);
-    if (value === "register") {
-      setShowFamilyTreeBuilder(false);
-      setFamilyTreeData(null);
-    }
+  const handleBackToAuth = () => {
+    setShowFamilyTreeBuilder(false);
   };
 
-  // Show first-time login profile update
-  if (showFirstTimeLogin && firstTimeUser) {
-    return (
-      <Card className="w-full max-w-md mx-auto border-isn-light shadow-xl">
-        <CardHeader className="bg-gradient-to-r from-isn-primary to-isn-secondary text-white rounded-t-lg">
-          <CardTitle className="text-center text-2xl">Complete Your Profile</CardTitle>
-          <CardDescription className="text-white/80 text-center">
-            Update your profile information
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <Alert className="mb-4">
-            <AlertDescription>
-              This appears to be your first login. Please update your profile information and set a new password.
-            </AlertDescription>
-          </Alert>
-          <Form {...updateProfileForm}>
-            <form onSubmit={updateProfileForm.handleSubmit(onUpdateProfile)} className="space-y-4">
-              <FormField
-                control={updateProfileForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter your full name" {...field} className="isn-input" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={updateProfileForm.control}
-                name="userId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>User ID</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Choose a user ID" {...field} className="isn-input" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={updateProfileForm.control}
-                name="newPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>New Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Create a new password" {...field} className="isn-input" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={updateProfileForm.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Confirm Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Confirm your password" {...field} className="isn-input" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full bg-isn-primary hover:bg-isn-primary/90" disabled={isLoading}>
-                {isLoading ? "Updating..." : "Update Profile"}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card className="w-full max-w-4xl mx-auto border-isn-light shadow-xl">
-      <CardHeader className="bg-gradient-to-r from-isn-primary to-isn-secondary text-white rounded-t-lg">
-        <CardTitle className="text-center text-2xl">
-          {mode === "login" ? "Login to ISN" : "Create Your Family Tree"}
-        </CardTitle>
-        <CardDescription className="text-white/80 text-center">
-          {mode === "login" ? "Connect with your family network" : "Start building your family tree"}
-        </CardDescription>
-      </CardHeader>
-      
-      <Tabs value={mode} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Login</TabsTrigger>
-          <TabsTrigger value="register">Register</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="login">
-          <CardContent className="pt-6">
-            <Form {...loginForm}>
-              <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
-                <FormField
-                  control={loginForm.control}
-                  name="identifier"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email or User ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter your email or user ID" {...field} className="isn-input" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+    <>
+      {showFamilyTreeBuilder ? (
+        <FamilyTreeBuilder 
+          onComplete={handleFamilyTreeComplete}
+          onBack={handleBackToAuth}
+          user={currentUser}
+        />
+      ) : (
+        <Card className="w-[350px]">
+          <CardHeader>
+            <CardTitle>
+              {isRegister ? "Create an account" : "Login to your account"}
+            </CardTitle>
+            <CardDescription>
+              {isRegister
+                ? "Enter your credentials below to create your account"
+                : "Enter your email and password below to login"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!isRegister ? null : (
+              <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  placeholder="Enter your name"
+                  required
+                  name="name"
+                  value={input.name}
+                  onChange={handleChange}
                 />
-                <FormField
-                  control={loginForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="Enter your password" {...field} className="isn-input" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full bg-isn-primary hover:bg-isn-primary/90" disabled={isLoading}>
-                  {isLoading ? "Logging in..." : "Login"}
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </TabsContent>
-        
-        <TabsContent value="register">
-          <CardContent className="pt-6">
-            {!showFamilyTreeBuilder ? (
-              <Form {...registerForm}>
-                <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-4">
-                  <FormField
-                    control={registerForm.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Full Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter your full name" {...field} className="isn-input" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={registerForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter your email" {...field} className="isn-input" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={registerForm.control}
-                    name="userId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>User ID</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Choose a user ID" {...field} className="isn-input" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={registerForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Create a password" {...field} className="isn-input" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={registerForm.control}
-                    name="confirmPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Confirm Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Confirm your password" {...field} className="isn-input" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button 
-                    type="button" 
-                    onClick={() => setShowFamilyTreeBuilder(true)} 
-                    className="w-full bg-isn-primary hover:bg-isn-primary/90"
-                  >
-                    Create Your Family Tree
-                  </Button>
-                </form>
-              </Form>
-            ) : (
-              <FamilyTreeBuilder 
-                onComplete={handleFamilyTreeComplete}
-                onBack={() => setShowFamilyTreeBuilder(false)}
-              />
-            )}
-          </CardContent>
-          <CardFooter className="text-sm text-gray-500 pb-4 px-6">
-            {familyTreeData && !showFamilyTreeBuilder && (
-              <div className="w-full">
-                <p className="mb-2">Family tree created with {familyTreeData.members?.length || 0} members</p>
-                <Button 
-                  type="submit" 
-                  onClick={registerForm.handleSubmit(onRegisterSubmit)}
-                  className="w-full bg-isn-primary hover:bg-isn-primary/90" 
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Creating Family Tree..." : "Create My Family Tree"}
-                </Button>
               </div>
             )}
-          </CardFooter>
-        </TabsContent>
-      </Tabs>
-    </Card>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                placeholder="Enter your email"
+                required
+                type="email"
+                name="email"
+                value={input.email}
+                onChange={handleChange}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <PasswordInput
+                id="password"
+                placeholder="Enter your password"
+                required
+                name="password"
+                value={input.password}
+                onChange={handleChange}
+              />
+            </div>
+            <Button
+              className="w-full"
+              onClick={isRegister ? handleRegister : handleLogin}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+                  Please wait...
+                </>
+              ) : (
+                <>
+                  {isRegister ? "Create account" : "Login"}
+                  {!isRegister ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="lucide lucide-arrow-right ml-2"
+                    >
+                      <path d="M5 12h14" />
+                      <path d="m12 5 7 7-7 7" />
+                    </svg>
+                  ) : null}
+                </>
+              )}
+            </Button>
+            <Separator />
+            <Button
+              variant="link"
+              className="w-full"
+              onClick={() => setIsRegister(!isRegister)}
+            >
+              {isRegister
+                ? "Already have an account? Login"
+                : "Don't have an account? Register"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </>
   );
 };
 
