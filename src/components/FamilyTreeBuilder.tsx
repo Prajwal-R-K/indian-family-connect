@@ -19,8 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, User, Save, ArrowLeft, Users } from 'lucide-react';
+import { Plus, User, Save, ArrowLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { createUser, createReciprocalRelationship } from '@/lib/neo4j';
 import { generateId } from '@/lib/utils';
@@ -46,18 +45,18 @@ const relationshipTypes = [
 // Custom node component
 const FamilyNode = ({ data, id }: { data: any; id: string }) => {
   return (
-    <div className="relative bg-white border-2 border-blue-200 rounded-xl p-4 min-w-[180px] shadow-lg hover:shadow-xl transition-shadow">
+    <div className="relative bg-white border-2 border-blue-200 rounded-xl p-4 min-w-[200px] shadow-lg hover:shadow-xl transition-shadow">
       <Handle type="target" position={Position.Top} className="w-3 h-3 bg-blue-500" />
       <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-blue-500" />
       
-      <div className="flex flex-col items-center space-y-2">
-        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-          <User className="w-6 h-6 text-white" />
+      <div className="flex flex-col items-center space-y-3">
+        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+          <User className="w-8 h-8 text-white" />
         </div>
         
         <div className="text-center">
           <div className="font-semibold text-slate-800 text-sm">{data.name}</div>
-          <div className="text-xs text-slate-600 truncate max-w-[140px]">{data.email}</div>
+          <div className="text-xs text-slate-600">{data.email}</div>
           {data.relationship && !data.isRoot && (
             <div className="text-xs font-medium text-blue-600 mt-1 capitalize bg-blue-50 px-2 py-1 rounded">
               {data.relationship}
@@ -68,10 +67,10 @@ const FamilyNode = ({ data, id }: { data: any; id: string }) => {
         <Button
           size="sm"
           variant="outline"
-          className="w-6 h-6 rounded-full p-0 hover:bg-blue-50 border-blue-300"
+          className="w-8 h-8 rounded-full p-0 hover:bg-blue-50 border-blue-300"
           onClick={() => data.onAddRelation && data.onAddRelation(id)}
         >
-          <Plus className="w-3 h-3" />
+          <Plus className="w-4 h-4" />
         </Button>
       </div>
     </div>
@@ -158,8 +157,8 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     const generation = getGeneration(relationship, parentGeneration);
     
     // Enhanced spacing
-    const generationSpacing = 200;
-    const siblingSpacing = 250;
+    const generationSpacing = 300;
+    const siblingSpacing = 400;
     
     // Calculate Y position based on generation
     const baseY = (generation * generationSpacing);
@@ -173,7 +172,7 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     // For spouses, place them side by side
     if (['husband', 'wife'].includes(relationship)) {
       return {
-        x: parentPos.x + (relationship === 'husband' ? -200 : 200),
+        x: parentPos.x + (relationship === 'husband' ? -300 : 300),
         y: parentPos.y
       };
     }
@@ -193,25 +192,20 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     // For parents (generation -1), place them above
     if (generation < parentGeneration) {
       return {
-        x: parentPos.x + (nodesCount * 300) - (nodesCount > 0 ? 150 : 0),
+        x: parentPos.x + (nodesCount * 400) - (nodesCount > 0 ? 200 : 0),
         y: baseY
       };
     }
     
     // For children (generation +1), place them below
     return {
-      x: parentPos.x + (nodesCount * 250) - (nodesCount > 0 ? 125 : 0),
+      x: parentPos.x + (nodesCount * 350) - (nodesCount > 0 ? 175 : 0),
       y: baseY
     };
   };
 
   const addFamilyMember = () => {
     if (!newMember.name || !newMember.email || !newMember.relationship || !selectedNodeId) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      });
       return;
     }
 
@@ -248,7 +242,7 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       type: 'smoothstep',
       style: { 
         stroke: '#3b82f6', 
-        strokeWidth: 2,
+        strokeWidth: 3,
       },
       markerEnd: {
         type: 'arrowclosed' as any,
@@ -268,11 +262,6 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
 
     setShowAddDialog(false);
     setNewMember({ name: '', email: '', phone: '', relationship: '' });
-    
-    toast({
-      title: "Member Added",
-      description: `${newMember.name} has been added to your family tree.`,
-    });
   };
 
   const getOppositeRelationship = (relationship: string): string => {
@@ -294,30 +283,20 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
   };
 
   const handleComplete = async () => {
-    if (nodes.length <= 1) {
-      toast({
-        title: "Add Family Members",
-        description: "Please add at least one family member before saving.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsLoading(true);
     try {
-      console.log('Starting to save family tree...');
+      // Create family tree data structure
       const familyTreeId = user.familyTreeId;
       
       // Store all family members in Neo4j
       for (const node of nodes) {
         if (node.id !== 'root') {
-          console.log(`Creating user for node: ${node.data.name}`);
           const memberData = {
             userId: generateId('U'),
             name: node.data.name,
             email: node.data.email,
-            phone: node.data.phone || '',
-            status: 'invited' as const,
+            phone: node.data.phone,
+            status: 'invited' as const, // Fix the type issue
             familyTreeId: familyTreeId,
             createdBy: user.userId,
             createdAt: new Date().toISOString(),
@@ -331,11 +310,9 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
           if (selectedEdge) {
             const sourceNode = nodes.find(n => n.id === selectedEdge.source);
             if (sourceNode) {
-              const sourceUserId = sourceNode.id === 'root' ? user.userId : sourceNode.data.userId || user.userId;
+              const sourceUserId = sourceNode.id === 'root' ? user.userId : sourceNode.data.userId;
               const relationship1 = node.data.relationship;
               const relationship2 = getOppositeRelationship(relationship1);
-              
-              console.log(`Creating relationship: ${sourceUserId} -> ${memberData.userId} (${relationship2} -> ${relationship1})`);
               
               await createReciprocalRelationship(
                 familyTreeId,
@@ -350,7 +327,7 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       }
 
       toast({
-        title: "Family Tree Saved!",
+        title: "Family Tree Created!",
         description: "Your family tree has been saved successfully.",
       });
 
@@ -371,74 +348,18 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
   };
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-slate-50 to-blue-50 flex overflow-hidden">
-      {/* Left Sidebar - Instructions & Controls */}
-      <div className="w-80 bg-white border-r border-slate-200 flex flex-col shadow-lg">
-        {/* Header */}
-        <div className="p-6 border-b border-slate-200">
-          <h1 className="text-2xl font-bold text-slate-800 mb-2">Build Your Family Tree</h1>
-          <p className="text-slate-600 text-sm">Click the + button on any node to add family members</p>
+    <div className="h-screen w-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col overflow-hidden">
+      {/* Header - Fixed */}
+      <div className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shadow-sm z-10">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Build Your Family Tree</h1>
+          <p className="text-slate-600 text-sm mt-1">Click the + button on any node to add family members</p>
         </div>
-
-        {/* Stats */}
-        <div className="p-6 border-b border-slate-200">
-          <div className="grid grid-cols-2 gap-4">
-            <Card className="p-3">
-              <div className="text-center">
-                <Users className="w-6 h-6 mx-auto mb-1 text-blue-600" />
-                <div className="text-lg font-semibold">{nodes.length}</div>
-                <div className="text-xs text-slate-600">Members</div>
-              </div>
-            </Card>
-            <Card className="p-3">
-              <div className="text-center">
-                <div className="w-6 h-6 mx-auto mb-1 bg-blue-600 rounded-full flex items-center justify-center">
-                  <div className="w-2 h-2 bg-white rounded-full"></div>
-                </div>
-                <div className="text-lg font-semibold">{edges.length}</div>
-                <div className="text-xs text-slate-600">Connections</div>
-              </div>
-            </Card>
-          </div>
-        </div>
-
-        {/* Instructions */}
-        <div className="p-6 flex-1">
-          <h3 className="font-semibold text-slate-800 mb-3">How to use:</h3>
-          <div className="space-y-3 text-sm text-slate-600">
-            <div className="flex items-start gap-3">
-              <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center mt-0.5">
-                <span className="text-xs font-semibold text-blue-600">1</span>
-              </div>
-              <span>Click the + button on any family member to add a relative</span>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center mt-0.5">
-                <span className="text-xs font-semibold text-blue-600">2</span>
-              </div>
-              <span>Fill in their details and select the relationship</span>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center mt-0.5">
-                <span className="text-xs font-semibold text-blue-600">3</span>
-              </div>
-              <span>Continue adding family members to build your tree</span>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center mt-0.5">
-                <span className="text-xs font-semibold text-blue-600">4</span>
-              </div>
-              <span>Save your family tree when complete</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="p-6 border-t border-slate-200 space-y-3">
+        <div className="flex gap-3">
           <Button
             onClick={onBack}
             variant="outline"
-            className="w-full flex items-center gap-2"
+            className="flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
@@ -446,7 +367,7 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
           <Button
             onClick={handleComplete}
             disabled={nodes.length <= 1 || isLoading}
-            className="w-full flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
           >
             <Save className="w-4 h-4" />
             {isLoading ? 'Saving...' : 'Save Family Tree'}
@@ -454,7 +375,7 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
         </div>
       </div>
 
-      {/* Main Canvas - Family Tree */}
+      {/* Main Canvas - Scrollable */}
       <div className="flex-1 relative overflow-hidden">
         <ReactFlow
           nodes={nodes}
@@ -465,9 +386,9 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
           nodeTypes={nodeTypes}
           fitView
           className="bg-transparent"
-          defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
           minZoom={0.1}
-          maxZoom={1.5}
+          maxZoom={2}
           panOnScroll={true}
           panOnScrollSpeed={0.5}
           zoomOnScroll={true}
@@ -475,8 +396,8 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
           panOnDrag={true}
           selectNodesOnDrag={false}
         >
-          <Controls className="bg-white shadow-lg border border-slate-200 rounded-lg" />
-          <Background color="#e2e8f0" gap={25} size={1} />
+          <Controls className="bg-white shadow-lg border border-slate-200" />
+          <Background color="#e2e8f0" gap={30} size={2} />
         </ReactFlow>
       </div>
 
