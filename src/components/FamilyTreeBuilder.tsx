@@ -19,10 +19,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, User, Save, ArrowLeft } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Plus, User, Save, ArrowLeft, Users, TreePine } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { createUser, createReciprocalRelationship } from '@/lib/neo4j';
+import { createUser, createReciprocalRelationship, createFamilyTree } from '@/lib/neo4j';
 import { generateId } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 interface FamilyMemberNode extends Node {
   data: {
@@ -42,32 +44,36 @@ const relationshipTypes = [
   'husband', 'wife', 'grandfather', 'grandmother', 'grandson', 'granddaughter'
 ];
 
-// Custom node component
+// Custom node component with improved styling
 const FamilyNode = ({ data, id }: { data: any; id: string }) => {
   return (
-    <div className="relative bg-white border-2 border-blue-200 rounded-xl p-4 min-w-[200px] shadow-lg hover:shadow-xl transition-shadow">
-      <Handle type="target" position={Position.Top} className="w-3 h-3 bg-blue-500" />
-      <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-blue-500" />
+    <div className="relative bg-white border-2 border-blue-200 rounded-xl p-4 min-w-[180px] shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105">
+      <Handle type="target" position={Position.Top} className="w-3 h-3 bg-blue-500 border-2 border-white" />
+      <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-blue-500 border-2 border-white" />
       
       <div className="flex flex-col items-center space-y-3">
-        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-          <User className="w-8 h-8 text-white" />
+        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-md">
+          <User className="w-7 h-7 text-white" />
         </div>
         
         <div className="text-center">
-          <div className="font-semibold text-slate-800 text-sm">{data.name}</div>
-          <div className="text-xs text-slate-600">{data.email}</div>
+          <div className="font-semibold text-slate-800 text-sm leading-tight">{data.name}</div>
+          <div className="text-xs text-slate-500 mt-1">{data.email}</div>
           {data.relationship && !data.isRoot && (
-            <div className="text-xs font-medium text-blue-600 mt-1 capitalize bg-blue-50 px-2 py-1 rounded">
+            <div className="text-xs font-medium text-blue-600 mt-2 capitalize bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
               {data.relationship}
+            </div>
+          )}
+          {data.isRoot && (
+            <div className="text-xs font-medium text-green-600 mt-2 capitalize bg-green-50 px-3 py-1 rounded-full border border-green-200">
+              You
             </div>
           )}
         </div>
         
         <Button
           size="sm"
-          variant="outline"
-          className="w-8 h-8 rounded-full p-0 hover:bg-blue-50 border-blue-300"
+          className="w-8 h-8 rounded-full p-0 bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transition-all duration-200"
           onClick={() => data.onAddRelation && data.onAddRelation(id)}
         >
           <Plus className="w-4 h-4" />
@@ -88,6 +94,7 @@ interface FamilyTreeBuilderProps {
 }
 
 const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBack, user }) => {
+  const navigate = useNavigate();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -156,28 +163,23 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     const parentGeneration = typeof parentNode.data?.generation === 'number' ? parentNode.data.generation : 0;
     const generation = getGeneration(relationship, parentGeneration);
     
-    // Enhanced spacing
-    const generationSpacing = 300;
-    const siblingSpacing = 400;
+    const generationSpacing = 250;
+    const siblingSpacing = 300;
     
-    // Calculate Y position based on generation
     const baseY = (generation * generationSpacing);
     
-    // Count existing nodes in this generation
     const nodesInGeneration = existingNodes.filter(node => {
       const nodeGeneration = typeof node.data?.generation === 'number' ? node.data.generation : 0;
       return nodeGeneration === generation;
     });
     
-    // For spouses, place them side by side
     if (['husband', 'wife'].includes(relationship)) {
       return {
-        x: parentPos.x + (relationship === 'husband' ? -300 : 300),
+        x: parentPos.x + (relationship === 'husband' ? -250 : 250),
         y: parentPos.y
       };
     }
     
-    // For siblings, place them in the same row with proper spacing
     if (['brother', 'sister'].includes(relationship)) {
       const siblingsCount = nodesInGeneration.length;
       return {
@@ -186,26 +188,28 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       };
     }
     
-    // For parents and children, distribute them horizontally
     const nodesCount = nodesInGeneration.length;
     
-    // For parents (generation -1), place them above
     if (generation < parentGeneration) {
       return {
-        x: parentPos.x + (nodesCount * 400) - (nodesCount > 0 ? 200 : 0),
+        x: parentPos.x + (nodesCount * 300) - (nodesCount > 0 ? 150 : 0),
         y: baseY
       };
     }
     
-    // For children (generation +1), place them below
     return {
-      x: parentPos.x + (nodesCount * 350) - (nodesCount > 0 ? 175 : 0),
+      x: parentPos.x + (nodesCount * 280) - (nodesCount > 0 ? 140 : 0),
       y: baseY
     };
   };
 
   const addFamilyMember = () => {
     if (!newMember.name || !newMember.email || !newMember.relationship || !selectedNodeId) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -216,7 +220,6 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     const selectedGeneration = typeof selectedNode.data?.generation === 'number' ? selectedNode.data.generation : 0;
     const generation = getGeneration(newMember.relationship, selectedGeneration);
     
-    // Calculate position based on tree structure
     const position = calculateNodePosition(selectedNode, newMember.relationship, nodes);
     
     const newNode: FamilyMemberNode = {
@@ -234,7 +237,6 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       }
     };
 
-    // Create edge with proper styling
     const newEdge: Edge = {
       id: `edge-${selectedNodeId}-${newNodeId}`,
       source: selectedNodeId,
@@ -242,7 +244,7 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       type: 'smoothstep',
       style: { 
         stroke: '#3b82f6', 
-        strokeWidth: 3,
+        strokeWidth: 2,
       },
       markerEnd: {
         type: 'arrowclosed' as any,
@@ -262,6 +264,11 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
 
     setShowAddDialog(false);
     setNewMember({ name: '', email: '', phone: '', relationship: '' });
+    
+    toast({
+      title: "Member Added",
+      description: `${newMember.name} has been added to your family tree.`,
+    });
   };
 
   const getOppositeRelationship = (relationship: string): string => {
@@ -283,60 +290,105 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
   };
 
   const handleComplete = async () => {
+    if (nodes.length <= 1) {
+      toast({
+        title: "Add Family Members",
+        description: "Please add at least one family member before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Create family tree data structure
-      const familyTreeId = user.familyTreeId;
+      console.log("Starting family tree creation process...");
       
-      // Store all family members in Neo4j
+      // First, create the family tree in the database
+      const familyTreeId = generateId('FT');
+      await createFamilyTree({
+        familyTreeId,
+        createdBy: user.email,
+        createdAt: new Date().toISOString()
+      });
+      
+      console.log("Family tree created with ID:", familyTreeId);
+
+      // Now create the main user with the family tree ID
+      const mainUserData = {
+        userId: user.userId || generateId('U'),
+        name: user.name,
+        email: user.email,
+        password: user.password,
+        status: 'active' as const,
+        familyTreeId: familyTreeId,
+        createdBy: user.email,
+        createdAt: new Date().toISOString(),
+        myRelationship: 'self'
+      };
+      
+      await createUser(mainUserData);
+      console.log("Main user created successfully");
+
+      // Create all family members
+      const createdMembers: any[] = [];
       for (const node of nodes) {
         if (node.id !== 'root') {
           const memberData = {
             userId: generateId('U'),
             name: node.data.name,
             email: node.data.email,
-            phone: node.data.phone,
-            status: 'invited' as const, // Fix the type issue
+            phone: node.data.phone || '',
+            status: 'invited' as const,
             familyTreeId: familyTreeId,
-            createdBy: user.userId,
+            createdBy: mainUserData.userId,
             createdAt: new Date().toISOString(),
             myRelationship: node.data.relationship
           };
           
           await createUser(memberData);
+          createdMembers.push({ ...memberData, nodeId: node.id });
+          console.log("Created member:", memberData.name);
+        }
+      }
+
+      // Create relationships
+      for (const edge of edges) {
+        const sourceNode = nodes.find(n => n.id === edge.source);
+        const targetNode = nodes.find(n => n.id === edge.target);
+        
+        if (sourceNode && targetNode) {
+          const sourceUserId = edge.source === 'root' ? mainUserData.userId : 
+            createdMembers.find(m => m.nodeId === edge.source)?.userId;
+          const targetUserId = createdMembers.find(m => m.nodeId === edge.target)?.userId;
           
-          // Create relationships
-          const selectedEdge = edges.find(edge => edge.target === node.id);
-          if (selectedEdge) {
-            const sourceNode = nodes.find(n => n.id === selectedEdge.source);
-            if (sourceNode) {
-              const sourceUserId = sourceNode.id === 'root' ? user.userId : sourceNode.data.userId;
-              const relationship1 = node.data.relationship;
-              const relationship2 = getOppositeRelationship(relationship1);
-              
-              await createReciprocalRelationship(
-                familyTreeId,
-                sourceUserId,
-                memberData.userId,
-                relationship2,
-                relationship1
-              );
-            }
+          if (sourceUserId && targetUserId) {
+            const relationship1 = targetNode.data.relationship;
+            const relationship2 = getOppositeRelationship(relationship1);
+            
+            await createReciprocalRelationship(
+              familyTreeId,
+              sourceUserId,
+              targetUserId,
+              relationship2,
+              relationship1
+            );
+            console.log(`Created relationship: ${relationship2} -> ${relationship1}`);
           }
         }
       }
 
       toast({
-        title: "Family Tree Created!",
-        description: "Your family tree has been saved successfully.",
+        title: "Success!",
+        description: "Your family tree has been created successfully!",
       });
 
-      onComplete({
-        members: nodes.filter(n => n.id !== 'root'),
-        relationships: edges
-      });
+      // Navigate to dashboard
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1000);
+
     } catch (error) {
-      console.error('Error saving family tree:', error);
+      console.error('Error creating family tree:', error);
       toast({
         title: "Error",
         description: "Failed to save family tree. Please try again.",
@@ -348,35 +400,103 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
   };
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col overflow-hidden">
-      {/* Header - Fixed */}
-      <div className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shadow-sm z-10">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Build Your Family Tree</h1>
-          <p className="text-slate-600 text-sm mt-1">Click the + button on any node to add family members</p>
+    <div className="h-screen w-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex overflow-hidden">
+      {/* Left Sidebar */}
+      <div className="w-80 bg-white border-r border-slate-200 shadow-lg flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b border-slate-200">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <TreePine className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">Family Tree Builder</h1>
+              <p className="text-sm text-slate-600">Create your family connections</p>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-3">
-          <Button
-            onClick={onBack}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </Button>
+
+        {/* Instructions */}
+        <div className="p-6 flex-1">
+          <Card className="mb-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                How to Build
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-slate-600">
+              <div className="flex items-start gap-2">
+                <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center text-xs font-medium text-blue-600 mt-0.5">1</div>
+                <p>Click the <Plus className="w-3 h-3 inline mx-1" /> button on any family member</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center text-xs font-medium text-blue-600 mt-0.5">2</div>
+                <p>Fill in their details and relationship</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center text-xs font-medium text-blue-600 mt-0.5">3</div>
+                <p>Continue adding family members</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center text-xs font-medium text-blue-600 mt-0.5">4</div>
+                <p>Save your complete family tree</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Stats */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Progress</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Family Members</span>
+                <span className="font-medium">{nodes.length}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Relationships</span>
+                <span className="font-medium">{edges.length}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Actions */}
+        <div className="p-6 border-t border-slate-200 space-y-3">
           <Button
             onClick={handleComplete}
             disabled={nodes.length <= 1 || isLoading}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg"
+            size="lg"
           >
-            <Save className="w-4 h-4" />
-            {isLoading ? 'Saving...' : 'Save Family Tree'}
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Creating Family Tree...
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Save className="w-4 h-4" />
+                Save Family Tree ({nodes.length - 1} members)
+              </div>
+            )}
+          </Button>
+          <Button
+            onClick={onBack}
+            variant="outline"
+            className="w-full"
+            disabled={isLoading}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Registration
           </Button>
         </div>
       </div>
 
-      {/* Main Canvas - Scrollable */}
-      <div className="flex-1 relative overflow-hidden">
+      {/* Main Canvas */}
+      <div className="flex-1 relative">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -386,9 +506,9 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
           nodeTypes={nodeTypes}
           fitView
           className="bg-transparent"
-          defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-          minZoom={0.1}
-          maxZoom={2}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.9 }}
+          minZoom={0.2}
+          maxZoom={1.5}
           panOnScroll={true}
           panOnScrollSpeed={0.5}
           zoomOnScroll={true}
@@ -396,8 +516,8 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
           panOnDrag={true}
           selectNodesOnDrag={false}
         >
-          <Controls className="bg-white shadow-lg border border-slate-200" />
-          <Background color="#e2e8f0" gap={30} size={2} />
+          <Controls className="bg-white shadow-lg border border-slate-200 rounded-lg" />
+          <Background color="#e2e8f0" gap={20} size={1} />
         </ReactFlow>
       </div>
 
@@ -405,28 +525,31 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-xl">Add Family Member</DialogTitle>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              Add Family Member
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="name" className="text-sm font-medium">Name *</Label>
+              <Label htmlFor="name" className="text-sm font-medium">Full Name *</Label>
               <Input
                 id="name"
                 value={newMember.name}
                 onChange={(e) => setNewMember({ ...newMember, name: e.target.value })}
-                placeholder="Enter full name"
+                placeholder="Enter their full name"
                 className="mt-1"
               />
             </div>
             
             <div>
-              <Label htmlFor="relationship" className="text-sm font-medium">Relationship *</Label>
+              <Label htmlFor="relationship" className="text-sm font-medium">Relationship to You *</Label>
               <Select
                 value={newMember.relationship}
                 onValueChange={(value) => setNewMember({ ...newMember, relationship: value })}
               >
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select relationship" />
+                  <SelectValue placeholder="Select their relationship" />
                 </SelectTrigger>
                 <SelectContent>
                   {relationshipTypes.map(type => (
@@ -439,24 +562,24 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
             </div>
 
             <div>
-              <Label htmlFor="email" className="text-sm font-medium">Email *</Label>
+              <Label htmlFor="email" className="text-sm font-medium">Email Address *</Label>
               <Input
                 id="email"
                 type="email"
                 value={newMember.email}
                 onChange={(e) => setNewMember({ ...newMember, email: e.target.value })}
-                placeholder="Enter email address"
+                placeholder="Enter their email"
                 className="mt-1"
               />
             </div>
 
             <div>
-              <Label htmlFor="phone" className="text-sm font-medium">Phone (Optional)</Label>
+              <Label htmlFor="phone" className="text-sm font-medium">Phone Number (Optional)</Label>
               <Input
                 id="phone"
                 value={newMember.phone}
                 onChange={(e) => setNewMember({ ...newMember, phone: e.target.value })}
-                placeholder="Enter phone number"
+                placeholder="Enter their phone number"
                 className="mt-1"
               />
             </div>

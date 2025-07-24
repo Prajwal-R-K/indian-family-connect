@@ -1,121 +1,78 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  createUser,
-  verifyPassword,
-  getUserByEmailOrId,
-} from "@/lib/neo4j";
-import { generateId, getCurrentDateTime } from "@/lib/utils";
-import { cn } from "@/lib/utils";
-import { Icons } from "@/components/icons";
-import { Separator } from "@/components/ui/separator";
-import { useSearchParams } from "react-router-dom";
-import { PasswordInput } from "./ui/password-input";
-import FamilyTreeBuilder from "./FamilyTreeBuilder";
 
-interface AuthFormProps extends React.HTMLAttributes<HTMLDivElement> {}
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
+import { AuthFormValues, User } from '@/types';
+import { 
+  loginUser, 
+  registerUser, 
+  checkEmailExists
+} from '@/lib/neo4j';
+import { generateId } from '@/lib/utils';
+import { Eye, EyeOff, TreePine, Users, LogIn, UserPlus } from 'lucide-react';
 
 const AuthForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isRegister, setIsRegister] = useState<boolean>(false);
-  const [showFamilyTreeBuilder, setShowFamilyTreeBuilder] = useState<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [searchParams] = useSearchParams();
-  const invitationId = searchParams.get("invitationId");
-  const [input, setInput] = React.useState({
-    name: "",
-    email: "",
-    password: "",
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [activeTab, setActiveTab] = useState('login');
+
+  // Separate states for login and register
+  const [loginForm, setLoginForm] = useState({
+    email: '',
+    password: ''
   });
 
-  const isValidEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
+  const [registerForm, setRegisterForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput({
-      ...input,
-      [e.target.name]: e.target.value,
-    });
-  };
+  const [pendingUser, setPendingUser] = useState<any>(null);
 
-  const handleLogin = async (e: React.SyntheticEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.email || !input.password) {
+    if (!loginForm.email || !loginForm.password) {
       toast({
-        title: "Missing fields",
-        description: "Please enter all the required fields.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!isValidEmail(input.email)) {
-      toast({
-        title: "Invalid email format",
-        description: "Please enter a valid email address.",
+        title: "Missing Information",
+        description: "Please fill in all fields.",
         variant: "destructive",
       });
       return;
     }
 
     setIsLoading(true);
-
     try {
-      const existingUser = await getUserByEmailOrId(input.email);
-
-      if (!existingUser) {
+      console.log("Attempting login for:", loginForm.email);
+      const user = await loginUser(loginForm.email, loginForm.password);
+      
+      if (user) {
+        console.log("Login successful:", user);
         toast({
-          title: "Invalid credentials",
-          description: "Incorrect email or password.",
-          variant: "destructive",
+          title: "Welcome back!",
+          description: "You have been logged in successfully.",
         });
-        return;
+        
+        // Store user in localStorage for session management
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        
+        // Navigate to dashboard
+        navigate('/dashboard');
       }
-
-      const isPasswordValid = await verifyPassword(
-        input.password,
-        existingUser.password
-      );
-
-      if (!isPasswordValid) {
-        toast({
-          title: "Invalid credentials",
-          description: "Incorrect email or password.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (existingUser.status === "invited") {
-        toast({
-          title: "Account not activated",
-          description: "Please activate your account to continue.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      localStorage.setItem("userId", existingUser.userId);
-      localStorage.setItem("userData", JSON.stringify(existingUser));
+    } catch (error: any) {
+      console.error('Login error:', error);
       toast({
-        title: "Login successful",
-        description: "You have successfully logged in.",
-      });
-      navigate("/dashboard", { state: { user: existingUser } });
-    } catch (error) {
-      console.error("Login error:", error);
-      toast({
-        title: "Login failed",
-        description: "Failed to log in. Please try again later.",
+        title: "Login Failed",
+        description: error.message || "Invalid email or password.",
         variant: "destructive",
       });
     } finally {
@@ -123,193 +80,285 @@ const AuthForm = () => {
     }
   };
 
-  const handleRegister = async (e: React.SyntheticEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.name || !input.email || !input.password) {
-      toast({
-        title: "Missing fields",
-        description: "Please enter all the required fields.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!isValidEmail(input.email)) {
-      toast({
-        title: "Invalid email format",
-        description: "Please enter a valid email address.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const existingUser = await getUserByEmailOrId(input.email);
-      if (existingUser) {
-        toast({
-          title: "Email already exists",
-          description: "Please use a different email address.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const hashedPassword = await createUser({
-        userId: generateId("U"),
-        name: input.name,
-        email: input.email,
-        password: input.password,
-        status: "active",
-        familyTreeId: generateId("FT"),
-        createdBy: "self",
-        createdAt: getCurrentDateTime(),
-      });
-
-      localStorage.setItem("userId", hashedPassword.userId);
-      localStorage.setItem("userData", JSON.stringify(hashedPassword));
-      toast({
-        title: "Registration successful",
-        description: "You have successfully registered.",
-      });
-      setCurrentUser(hashedPassword);
-      setShowFamilyTreeBuilder(true);
-    } catch (error) {
-      console.error("Registration error:", error);
-      toast({
-        title: "Registration failed",
-        description: "Failed to register. Please try again later.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleFamilyTreeComplete = (familyData: any) => {
-    console.log('Family tree created:', familyData);
-    toast({
-      title: "Family Tree Created!",
-      description: "Your family tree has been saved successfully.",
-    });
     
-    // Navigate to dashboard
-    navigate('/dashboard', { 
-      state: { 
-        user: currentUser 
-      } 
-    });
-  };
+    if (!registerForm.name || !registerForm.email || !registerForm.password || !registerForm.confirmPassword) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all fields.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const handleBackToAuth = () => {
-    setShowFamilyTreeBuilder(false);
+    if (registerForm.password !== registerForm.confirmPassword) {
+      toast({
+        title: "Password Mismatch",
+        description: "Passwords do not match.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (registerForm.password.length < 6) {
+      toast({
+        title: "Weak Password",
+        description: "Password must be at least 6 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Check if email already exists
+      const emailExists = await checkEmailExists(registerForm.email);
+      if (emailExists) {
+        toast({
+          title: "Email Already Exists",
+          description: "An account with this email already exists. Please login instead.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Create pending user object (not saved to database yet)
+      const pendingUserData = {
+        userId: generateId('U'),
+        name: registerForm.name,
+        email: registerForm.email,
+        password: registerForm.password,
+        status: 'active' as const,
+        createdAt: new Date().toISOString()
+      };
+
+      setPendingUser(pendingUserData);
+      
+      toast({
+        title: "Account Ready!",
+        description: "Now let's create your family tree.",
+      });
+
+      // Navigate to family tree builder instead of dashboard
+      navigate('/family-tree', { 
+        state: { 
+          user: pendingUserData,
+          isNewRegistration: true 
+        } 
+      });
+
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      toast({
+        title: "Registration Failed", 
+        description: error.message || "Failed to create account. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <>
-      {showFamilyTreeBuilder ? (
-        <FamilyTreeBuilder 
-          onComplete={handleFamilyTreeComplete}
-          onBack={handleBackToAuth}
-          user={currentUser}
-        />
-      ) : (
-        <Card className="w-[350px]">
-          <CardHeader>
-            <CardTitle>
-              {isRegister ? "Create an account" : "Login to your account"}
-            </CardTitle>
-            <CardDescription>
-              {isRegister
-                ? "Enter your credentials below to create your account"
-                : "Enter your email and password below to login"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {!isRegister ? null : (
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  placeholder="Enter your name"
-                  required
-                  name="name"
-                  value={input.name}
-                  onChange={handleChange}
-                />
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                placeholder="Enter your email"
-                required
-                type="email"
-                name="email"
-                value={input.email}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <PasswordInput
-                id="password"
-                placeholder="Enter your password"
-                required
-                name="password"
-                value={input.password}
-                onChange={handleChange}
-              />
-            </div>
-            <Button
-              className="w-full"
-              onClick={isRegister ? handleRegister : handleLogin}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-                  Please wait...
-                </>
-              ) : (
-                <>
-                  {isRegister ? "Create account" : "Login"}
-                  {!isRegister ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="lucide lucide-arrow-right ml-2"
-                    >
-                      <path d="M5 12h14" />
-                      <path d="m12 5 7 7-7 7" />
-                    </svg>
-                  ) : null}
-                </>
-              )}
-            </Button>
-            <Separator />
-            <Button
-              variant="link"
-              className="w-full"
-              onClick={() => setIsRegister(!isRegister)}
-            >
-              {isRegister
-                ? "Already have an account? Login"
-                : "Don't have an account? Register"}
-            </Button>
-          </CardContent>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <TreePine className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">Family Tree</h1>
+          <p className="text-slate-600">Connect with your loved ones</p>
+        </div>
+
+        <Card className="shadow-xl border-0">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="login" className="flex items-center gap-2">
+                <LogIn className="w-4 h-4" />
+                Login
+              </TabsTrigger>
+              <TabsTrigger value="register" className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
+                Register
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="login">
+              <CardHeader className="text-center pb-4">
+                <CardTitle className="text-xl">Welcome Back</CardTitle>
+                <CardDescription>
+                  Sign in to access your family tree
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email">Email</Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={loginForm.email}
+                      onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="login-password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Enter your password"
+                        value={loginForm.password}
+                        onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700" 
+                    disabled={isLoading}
+                    size="lg"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Signing In...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <LogIn className="w-4 h-4" />
+                        Sign In
+                      </div>
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </TabsContent>
+
+            <TabsContent value="register">
+              <CardHeader className="text-center pb-4">
+                <CardTitle className="text-xl">Create Account</CardTitle>
+                <CardDescription>
+                  Join and start building your family tree
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="register-name">Full Name</Label>
+                    <Input
+                      id="register-name"
+                      type="text"
+                      placeholder="Enter your full name"
+                      value={registerForm.name}
+                      onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="register-email">Email</Label>
+                    <Input
+                      id="register-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={registerForm.email}
+                      onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="register-password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="register-password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Create a password"
+                        value={registerForm.password}
+                        onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="register-confirm-password">Confirm Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="register-confirm-password"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        placeholder="Confirm your password"
+                        value={registerForm.confirmPassword}
+                        onChange={(e) => setRegisterForm({ ...registerForm, confirmPassword: e.target.value })}
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700" 
+                    disabled={isLoading}
+                    size="lg"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Creating Account...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        Create Account & Build Tree
+                      </div>
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </TabsContent>
+          </Tabs>
         </Card>
-      )}
-    </>
+
+        <p className="text-center text-sm text-slate-600 mt-6">
+          By continuing, you agree to our Terms of Service and Privacy Policy
+        </p>
+      </div>
+    </div>
   );
 };
 
