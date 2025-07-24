@@ -296,7 +296,7 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
             name: node.data.name,
             email: node.data.email,
             phone: node.data.phone,
-            status: 'invited',
+            status: 'invited' as const, // Fix the type issue
             familyTreeId: familyTreeId,
             createdBy: user.userId,
             createdAt: new Date().toISOString(),

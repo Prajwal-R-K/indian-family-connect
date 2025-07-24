@@ -8,10 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   createUser,
   verifyPassword,
-  generateId,
-  getCurrentDateTime,
   getUserByEmailOrId,
 } from "@/lib/neo4j";
+import { generateId, getCurrentDateTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Icons } from "@/components/icons";
 import { Separator } from "@/components/ui/separator";
