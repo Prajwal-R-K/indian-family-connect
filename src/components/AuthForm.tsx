@@ -24,6 +24,8 @@ const AuthForm = () => {
     email: "",
     password: "",
     confirmPassword: "",
+    userId: "",
+    gender: "",
   });
   const [showActivation, setShowActivation] = useState(false);
   const [invitedUser, setInvitedUser] = useState<any>(null);
@@ -125,7 +127,7 @@ const AuthForm = () => {
 
   const handleRegister = async (e: React.SyntheticEvent) => {
     e.preventDefault();
-    if (!input.name || !input.email || !input.password || !input.confirmPassword) {
+    if (!input.name || !input.email || !input.password || !input.confirmPassword || !input.userId || !input.gender) {
       toast({
         title: "Missing fields",
         description: "Please enter all the required fields.",
@@ -175,14 +177,25 @@ const AuthForm = () => {
         setIsLoading(false);
         return;
       }
-
+      // Check for unique userId
+      const existingUserId = await getUserByEmailOrId(input.userId);
+      if (existingUserId) {
+        toast({
+          title: "User ID already exists",
+          description: "Please choose a different user ID.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
       // Store registration data and move to family tree builder
       const tempUserData = {
         name: input.name,
         email: input.email,
         password: input.password,
+        userId: input.userId,
+        gender: input.gender,
       };
-
       setRegistrationData(tempUserData);
       setShowFamilyTreeBuilder(true);
 
@@ -353,17 +366,46 @@ const AuthForm = () => {
           <CardContent className="space-y-4">
             <form onSubmit={isRegister ? handleRegister : handleLogin}>
               {!isRegister ? null : (
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    placeholder="Enter your name"
-                    required
-                    name="name"
-                    value={input.name}
-                    onChange={handleChange}
-                  />
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Name</Label>
+                    <Input
+                      id="name"
+                      placeholder="Enter your name"
+                      required
+                      name="name"
+                      value={input.name}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="userId">User ID</Label>
+                    <Input
+                      id="userId"
+                      placeholder="Choose a unique user ID"
+                      required
+                      name="userId"
+                      value={input.userId}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="gender">Gender</Label>
+                    <select
+                      id="gender"
+                      name="gender"
+                      required
+                      value={input.gender}
+                      onChange={handleChange}
+                      className="w-full border rounded px-3 py-2 focus:outline-none focus:ring"
+                    >
+                      <option value="">Select gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </>
               )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>

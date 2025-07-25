@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Calendar, MessageSquare, Users, Settings, Home, Plus, Download, Mail } from 'lucide-react';
+import { User, Calendar, MessageSquare, Users, Settings, Home, Plus, Download, Mail, LogOut } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -21,7 +21,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user: initialUser }) => {
   useEffect(() => {
     const loadFamilyMembers = async () => {
       try {
-        const members = await getFamilyMembers(user.familyTreeId);
+        const members = await getFamilyMembers(user.familyTreeId, user.email);
         setFamilyMembers(members);
       } catch (error) {
         console.error('Error loading family members:', error);
@@ -38,7 +38,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user: initialUser }) => {
   const currentDate = new Date().toLocaleDateString();
 
   const myRelations = familyMembers
-    .filter(member => member.relationship && member.userId !== user.userId)
+    .filter(member => member.relationship && member.email !== user.email)
     .slice(0, 5); // Show top 5 relations
 
   const recentActivities = [
@@ -49,91 +49,95 @@ const Dashboard: React.FC<DashboardProps> = ({ user: initialUser }) => {
 
   const getActivityIcon = (type: string) => {
     switch (type) {
-      case 'member_joined': return <Users className="w-4 h-4" />;
-      case 'relationship_added': return <User className="w-4 h-4" />;
-      case 'profile_updated': return <Settings className="w-4 h-4" />;
-      default: return <Home className="w-4 h-4" />;
+      case 'member_joined': return <Users className="w-4 h-4 text-indigo-500" />;
+      case 'relationship_added': return <User className="w-4 h-4 text-green-500" />;
+      case 'profile_updated': return <Settings className="w-4 h-4 text-yellow-500" />;
+      default: return <Home className="w-4 h-4 text-gray-400" />;
     }
   };
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-gradient-to-r from-indigo-100 via-blue-50 to-white rounded-xl p-6 shadow">
+    <div className="space-y-10 max-w-7xl mx-auto px-2 sm:px-4 md:px-8 py-6">
+      {/* Enhanced Header */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-gradient-to-r from-indigo-200 via-blue-100 to-white rounded-2xl p-8 shadow-lg border border-indigo-100 relative">
         <div>
-          <h1 className="text-4xl font-extrabold text-indigo-700 mb-1">Family Dashboard</h1>
-          <p className="text-gray-600 text-lg">Manage your family tree and relationships</p>
+          <h1 className="text-4xl font-extrabold text-indigo-800 mb-2 tracking-tight drop-shadow">Family Dashboard</h1>
+          <p className="text-gray-700 text-lg font-medium">Manage your family tree and relationships</p>
         </div>
-        <div className="flex items-center gap-4">
-          <Avatar className="h-16 w-16 ring-4 ring-indigo-200 shadow-lg">
+        <div className="flex items-center gap-5">
+          <Avatar className="h-20 w-20 ring-4 ring-indigo-300 shadow-xl">
             <AvatarImage src={user.profilePicture} />
-            <AvatarFallback className="bg-indigo-500 text-white text-2xl">{user.name?.charAt(0)}</AvatarFallback>
+            <AvatarFallback className="bg-indigo-500 text-white text-3xl">{user.name?.charAt(0)}</AvatarFallback>
           </Avatar>
-          <div>
-            <div className="font-semibold text-indigo-700">{user.name}</div>
-            <div className="text-xs text-gray-500">ID: {user.familyTreeId}</div>
+          <div className="flex flex-col items-start">
+            <div className="font-bold text-indigo-700 text-lg">{user.name}</div>
+            <div className="text-xs text-gray-500 font-mono">ID: {user.familyTreeId}</div>
+            <Button variant="ghost" size="sm" className="mt-2 text-red-500 flex items-center gap-1 hover:bg-red-50">
+              <LogOut className="w-4 h-4" /> Logout
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         {/* Left Column - Family Tree Visualization & Quick Actions */}
-        <div className="lg:col-span-2 space-y-8">
-          <Card className="shadow-lg border-0">
+        <div className="lg:col-span-2 space-y-10">
+          <Card className="shadow-xl border-0 bg-gradient-to-br from-blue-50 to-indigo-100">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-indigo-700">
-                <Home className="w-5 h-5" />
+              <CardTitle className="flex items-center gap-2 text-indigo-700 text-2xl font-bold">
+                <Home className="w-6 h-6" />
                 Family Tree Viewer
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-96 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl flex items-center justify-center border border-indigo-100">
+              <div className="h-96 bg-gradient-to-br from-blue-100 to-indigo-50 rounded-xl flex items-center justify-center border border-indigo-200">
                 <FamilyTreeVisualization 
                   user={user} 
                   familyMembers={familyMembers}
+                  viewMode="all"
                 />
               </div>
             </CardContent>
           </Card>
 
           {/* Quick Actions */}
-          <Card className="shadow-lg border-0">
+          <Card className="shadow-xl border-0 bg-white">
             <CardHeader>
-              <CardTitle className="text-indigo-700">Quick Actions</CardTitle>
+              <CardTitle className="text-indigo-700 text-xl font-semibold">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Button variant="outline" className="h-24 flex-col bg-white hover:bg-indigo-50 border-indigo-200 shadow">
-                  <Plus className="h-8 w-8 mb-2 text-indigo-500" />
-                  <span className="font-semibold">Add New Member</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <Button variant="outline" className="h-28 flex-col bg-indigo-50 hover:bg-indigo-100 border-indigo-200 shadow-md transition-all">
+                  <Plus className="h-9 w-9 mb-2 text-indigo-500" />
+                  <span className="font-semibold text-indigo-700">Add New Member</span>
                 </Button>
-                <Button variant="outline" className="h-24 flex-col bg-white hover:bg-indigo-50 border-indigo-200 shadow">
-                  <Download className="h-8 w-8 mb-2 text-indigo-500" />
-                  <span className="font-semibold">Export Tree</span>
+                <Button variant="outline" className="h-28 flex-col bg-indigo-50 hover:bg-indigo-100 border-indigo-200 shadow-md transition-all">
+                  <Download className="h-9 w-9 mb-2 text-indigo-500" />
+                  <span className="font-semibold text-indigo-700">Export Tree</span>
                 </Button>
-                <Button variant="outline" className="h-24 flex-col bg-white hover:bg-indigo-50 border-indigo-200 shadow">
-                  <Mail className="h-8 w-8 mb-2 text-indigo-500" />
-                  <span className="font-semibold">Invite Family Member</span>
+                <Button variant="outline" className="h-28 flex-col bg-indigo-50 hover:bg-indigo-100 border-indigo-200 shadow-md transition-all">
+                  <Mail className="h-9 w-9 mb-2 text-indigo-500" />
+                  <span className="font-semibold text-indigo-700">Invite Family Member</span>
                 </Button>
               </div>
             </CardContent>
           </Card>
 
           {/* Recent Activity */}
-          <Card className="shadow-lg border-0">
+          <Card className="shadow-xl border-0 bg-white">
             <CardHeader>
-              <CardTitle className="text-indigo-700">Recent Activity</CardTitle>
+              <CardTitle className="text-indigo-700 text-xl font-semibold">Recent Activity</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {recentActivities.map((activity) => (
                   <div key={activity.id} className="flex items-center space-x-4">
-                    <div className="p-3 bg-indigo-100 rounded-full">
+                    <div className="p-3 bg-indigo-100 rounded-full shadow">
                       {getActivityIcon(activity.type)}
                     </div>
                     <div className="flex-1">
-                      <p className="text-base font-medium">{activity.description}</p>
+                      <p className="text-base font-medium text-gray-800">{activity.description}</p>
                       <p className="text-xs text-gray-500">{activity.time}</p>
                     </div>
                   </div>
@@ -144,12 +148,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user: initialUser }) => {
         </div>
 
         {/* Right Column - Stats and Info Cards */}
-        <div className="space-y-8">
+        <div className="space-y-10">
           {/* Stats Cards */}
           <div className="grid grid-cols-1 gap-6">
             <Card className="shadow border-0 bg-gradient-to-br from-indigo-50 to-white">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-indigo-700">
+                <CardTitle className="flex items-center gap-2 text-indigo-700 text-lg font-semibold">
                   <Users className="w-5 h-5" />
                   Total Members
                 </CardTitle>
@@ -162,7 +166,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user: initialUser }) => {
 
             <Card className="shadow border-0 bg-gradient-to-br from-green-50 to-white">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-green-700">
+                <CardTitle className="flex items-center gap-2 text-green-700 text-lg font-semibold">
                   <User className="w-5 h-5" />
                   Active Members
                 </CardTitle>
@@ -175,7 +179,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user: initialUser }) => {
 
             <Card className="shadow border-0 bg-gradient-to-br from-orange-50 to-white">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-orange-700">
+                <CardTitle className="flex items-center gap-2 text-orange-700 text-lg font-semibold">
                   <MessageSquare className="w-5 h-5" />
                   Pending Invites
                 </CardTitle>
@@ -197,7 +201,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user: initialUser }) => {
 
             <Card className="shadow border-0 bg-gradient-to-br from-blue-50 to-white">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-700">
+                <CardTitle className="flex items-center gap-2 text-blue-700 text-lg font-semibold">
                   <Calendar className="w-5 h-5" />
                   Tree Created On
                 </CardTitle>
@@ -210,9 +214,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user: initialUser }) => {
           </div>
 
           {/* My Relations */}
-          <Card className="shadow-lg border-0">
+          <Card className="shadow-xl border-0 bg-white">
             <CardHeader>
-              <CardTitle className="text-indigo-700">My Relations</CardTitle>
+              <CardTitle className="text-indigo-700 text-xl font-semibold">My Relations</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -225,7 +229,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user: initialUser }) => {
                           <AvatarFallback>{relation.name?.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="font-medium text-sm">{relation.name}</div>
+                          <div className="font-medium text-sm text-gray-800">{relation.name}</div>
                           <div className="text-xs text-gray-500">{relation.email}</div>
                         </div>
                       </div>

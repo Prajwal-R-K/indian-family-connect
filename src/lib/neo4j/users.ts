@@ -13,7 +13,7 @@ function generateRandomPassword(length = 8) {
   return password;
 }
 
-export const createUser = async (userData: Partial<User>): Promise<User> => {
+export const createUser = async (userData: any) => {
   // If no userId is provided, use a temporary placeholder for invited users
   if (!userData.userId && userData.status === 'invited') {
     userData.userId = `temp_${generateId('U')}`;
@@ -25,6 +25,10 @@ export const createUser = async (userData: Partial<User>): Promise<User> => {
     ? generateRandomPassword(8)
     : (userData.password || '');
 
+  // Ensure required optional fields are present
+  userData.phone = userData.phone ?? '';
+  userData.myRelationship = userData.myRelationship ?? '';
+
   const cypher = `
     CREATE (u:User {
       userId: $userId,
@@ -34,7 +38,10 @@ export const createUser = async (userData: Partial<User>): Promise<User> => {
       status: $status,
       familyTreeId: $familyTreeId,
       createdBy: $createdBy,
-      createdAt: $createdAt
+      createdAt: $createdAt,
+      gender: $gender,
+      phone: $phone,
+      myRelationship: $myRelationship
     })
     RETURN u
   `;
@@ -44,9 +51,9 @@ export const createUser = async (userData: Partial<User>): Promise<User> => {
     password: finalPassword,
   });
   if (result && result.length > 0) {
-    return result[0].u.properties as User;
+    return result[0].u.properties;
   }
-  throw new Error('Failed to create user');
+  throw new Error('Failed to create or find user');
 };
 
 export const getUserByEmailOrId = async (identifier: string): Promise<User | null> => {

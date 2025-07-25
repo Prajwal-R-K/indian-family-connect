@@ -1,4 +1,3 @@
-
 import { FamilyTree } from '@/types';
 import { runQuery } from './connection';
 
@@ -42,8 +41,8 @@ export const getFamilyMembers = async (familyTreeId: string) => {
       OPTIONAL MATCH (creator:User)-[r:RELATES_TO]->(u)
       WITH u, creator, collect(r.relationship)[0] AS relationship
       RETURN DISTINCT u.userId AS userId, u.name AS name, u.email AS email, u.status AS status, 
-             u.myRelationship as myRelationship, relationship AS relationship, creator.userId AS createdBy,
-             u.profilePicture as profilePicture
+      u.myRelationship as myRelationship, relationship AS relationship, creator.userId AS createdBy,
+      u.profilePicture as profilePicture
     `;
     
     const result = await runQuery(cypher, { familyTreeId });
@@ -92,37 +91,48 @@ export const getFamilyRelationships = async (familyTreeId: string) => {
   }
 };
 
-// Create reciprocal relationships between family members - updated for RELATES_TO
-export const createReciprocalRelationship = async (familyTreeId: string, userId1: string, userId2: string, relationship1: string, relationship2: string) => {
+// Helper to determine relationship direction and types
+const getRelationshipTypes = (
+  elderGender: string,
+  youngerGender: string
+): { parentToChild: string; childToParent: string } => {
+  // parentToChild: SON or DAUGHTER
+  // childToParent: FATHER or MOTHER
+  let parentToChild = "SON";
+  let childToParent = "FATHER";
+  if (youngerGender === "female") parentToChild = "DAUGHTER";
+  if (elderGender === "female") childToParent = "MOTHER";
+  return { parentToChild, childToParent };
+};
+
+// New version: always store parent → child as SON/DAUGHTER, child → parent as FATHER/MOTHER
+export const createReciprocalRelationship = async (
+  familyTreeId: string,
+  parentId: string,
+  childId: string,
+  parentGender: string,
+  childGender: string
+) => {
   try {
+    const { parentToChild } = getRelationshipTypes(parentGender, childGender);
+
     const cypher = `
-      MATCH (u1:User {familyTreeId: $familyTreeId, userId: $userId1})
-      MATCH (u2:User {familyTreeId: $familyTreeId, userId: $userId2})
-      // First clear any existing relationships to avoid duplicates
-      OPTIONAL MATCH (u1)-[r1:RELATES_TO]->(u2)
-      OPTIONAL MATCH (u2)-[r2:RELATES_TO]->(u1)
-      DELETE r1, r2
-      // Now create the new relationships
-      WITH u1, u2
-      CREATE (u1)-[r1:RELATES_TO {relationship: $relationship1}]->(u2)
-      CREATE (u2)-[r2:RELATES_TO {relationship: $relationship2}]->(u1)
-      RETURN r1.relationship as rel1, r2.relationship as rel2
+      MATCH (parent:User {familyTreeId: $familyTreeId, userId: $parentId})
+      MATCH (child:User {familyTreeId: $familyTreeId, userId: $childId})
+      CREATE (parent)-[:RELATES_TO {relationship: $parentToChild}]->(child)
+      RETURN parent.userId as parentId, child.userId as childId
     `;
-    
-    const result = await runQuery(cypher, { 
-      familyTreeId, 
-      userId1, 
-      userId2,
-      relationship1, 
-      relationship2 
+
+    const result = await runQuery(cypher, {
+      familyTreeId,
+      parentId,
+      childId,
+      parentToChild,
     });
-    
-    if (result && result.length > 0) {
-      return true;
-    }
-    return false;
+
+    return !!result;
   } catch (error) {
-    console.error("Error creating reciprocal relationship:", error);
+    console.error("Error creating relationship:", error);
     return false;
   }
 };

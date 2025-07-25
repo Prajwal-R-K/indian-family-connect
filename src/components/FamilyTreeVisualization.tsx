@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { User } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -139,6 +138,68 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     return positions;
   };
 
+  // Generation-based layout for 'all' view
+  const calculateGenerationPositions = (nodes: FamilyMember[], edges: Relationship[]) => {
+    if (!canvasRef.current) return {};
+    const rect = canvasRef.current.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    // 1. Build parent-child map
+    const childrenMap: Record<string, string[]> = {};
+    const parentCount: Record<string, number> = {};
+    nodes.forEach(n => {
+      childrenMap[n.userId] = [];
+      parentCount[n.userId] = 0;
+    });
+    edges.forEach(e => {
+      const type = e.type.toLowerCase();
+      // An edge with type 'son' or 'daughter' means the source is the parent and target is the child.
+      // This establishes the hierarchy for the tree layout.
+      if ((type === 'son' || type === 'daughter') && childrenMap[e.source] && parentCount[e.target] !== undefined) {
+        childrenMap[e.source].push(e.target); // Add child to parent's list
+        parentCount[e.target]++; // Increment parent count for the child
+      }
+    });
+    // 2. Find root nodes (eldest generation, no parents)
+    const roots = nodes.filter(n => parentCount[n.userId] === 0);
+    // 3. BFS to assign generation levels
+    const generationMap: Record<string, number> = {};
+    const queue: Array<{id: string, gen: number}> = roots.map(r => ({id: r.userId, gen: 0}));
+    while (queue.length) {
+      const {id, gen} = queue.shift()!;
+      generationMap[id] = gen;
+      for (const child of childrenMap[id]) {
+        if (generationMap[child] === undefined) {
+          queue.push({id: child, gen: gen + 1});
+        }
+      }
+    }
+    // 4. Group nodes by generation
+    // FIX: handle empty generationMap
+    const genValues = Object.values(generationMap);
+    const maxGen = genValues.length > 0 ? Math.max(...genValues) : 0;
+    const genNodes: Record<number, FamilyMember[]> = {};
+    nodes.forEach(n => {
+      const g = generationMap[n.userId] ?? 0;
+      if (!genNodes[g]) genNodes[g] = [];
+      genNodes[g].push(n);
+    });
+    // 5. Assign positions: each generation is a row, siblings spaced evenly
+    const positions: Record<string, NodePosition> = {};
+    const rowHeight = height / (maxGen + 2);
+    for (let gen = 0; gen <= maxGen; gen++) {
+      const members = genNodes[gen] || [];
+      const colWidth = width / (members.length + 1);
+      members.forEach((n, i) => {
+        positions[n.userId] = {
+          x: colWidth * (i + 1),
+          y: rowHeight * (gen + 1)
+        };
+      });
+    }
+    return positions;
+  };
+
   // Drag logic
   const handleMouseDown = (e: React.MouseEvent, userId: string) => {
     e.stopPropagation();
@@ -184,11 +245,13 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     setDragNode(null);
   };
 
-  // Initialize node positions for personal view
+  // Initialize node positions for personal and all view
   useEffect(() => {
+    const { nodes, edges } = getVisibleNodesAndEdges();
     if (viewMode === 'personal') {
-      const { nodes, edges } = getVisibleNodesAndEdges();
       setNodePositions(calculatePersonalPositions(nodes, edges));
+    } else if (viewMode === 'all') {
+      setNodePositions(calculateGenerationPositions(nodes, edges));
     }
   }, [viewMode, getVisibleNodesAndEdges]);
 

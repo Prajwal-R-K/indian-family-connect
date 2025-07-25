@@ -122,22 +122,17 @@ const DashboardPage = () => {
   
   return (
     <SidebarProvider>
-      <header className="h-12 flex items-center border-b bg-white">
-        <SidebarTrigger className="ml-2" />
-        <div className="flex-1 flex justify-between items-center px-4">
-          <h1 className="text-xl font-semibold">Family Tree Platform</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">Welcome, {user.name}</span>
-            <span className="text-xs text-gray-500">ID: {user.familyTreeId}</span>
-          </div>
-        </div>
-      </header>
-
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full bg-slate-50">
         <AppSidebar onLogout={handleLogout} />
-        <main className="flex-1 p-6 bg-gradient-to-br from-slate-50 to-blue-50">
-          <Dashboard user={user} />
-        </main>
+        <div className="flex-1 flex flex-col">
+          <header className="h-14 flex items-center border-b bg-white px-4 shadow-sm z-10">
+            <SidebarTrigger className="mr-4" />
+            <h1 className="text-xl font-bold text-indigo-800">Family Tree Platform</h1>
+          </header>
+          <main className="flex-1 p-0 md:p-6">
+            <Dashboard user={user} />
+          </main>
+        </div>
       </div>
     </SidebarProvider>
   );

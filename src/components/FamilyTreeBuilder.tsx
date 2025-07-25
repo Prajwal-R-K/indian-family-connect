@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   ReactFlow,
@@ -35,6 +34,7 @@ interface FamilyMemberNode extends Node {
     generation: number;
     isRoot?: boolean;
     onAddRelation?: (nodeId: string) => void;
+    gender?: string; // Add gender to node data
   };
 }
 
@@ -98,7 +98,8 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     name: '',
     email: '',
     phone: '',
-    relationship: ''
+    relationship: '',
+    gender: '',
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -130,7 +131,7 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
   const handleAddRelation = (nodeId: string) => {
     setSelectedNodeId(nodeId);
     setShowAddDialog(true);
-    setNewMember({ name: '', email: '', phone: '', relationship: '' });
+    setNewMember({ name: '', email: '', phone: '', relationship: '', gender: '' });
   };
 
   // Check if email already exists in current tree or in database
@@ -219,7 +220,7 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
   };
 
   const addFamilyMember = async () => {
-    if (!newMember.name || !newMember.email || !newMember.relationship || !selectedNodeId) {
+    if (!newMember.name || !newMember.email || !newMember.relationship || !newMember.gender || !selectedNodeId) {
       return;
     }
 
@@ -240,9 +241,9 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     const newNodeId = `node-${Date.now()}`;
     const selectedGeneration = typeof selectedNode.data?.generation === 'number' ? selectedNode.data.generation : 0;
     const generation = getGeneration(newMember.relationship, selectedGeneration);
-    
+
     const position = calculateNodePosition(selectedNode, newMember.relationship, nodes);
-    
+
     const newNode: FamilyMemberNode = {
       id: newNodeId,
       type: 'familyMember',
@@ -254,14 +255,26 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
         phone: newMember.phone,
         relationship: newMember.relationship,
         generation,
-        onAddRelation: handleAddRelation
+        onAddRelation: handleAddRelation,
+        gender: newMember.gender,
       }
     };
 
+    // Always connect from elder (parent) to younger (child)
+    let sourceId = selectedNodeId;
+    let targetId = newNodeId;
+    let relationship = newMember.relationship.toLowerCase();
+
+    // If user adds a parent (father/mother), reverse the edge direction
+    if (["father", "mother", "grandfather", "grandmother"].includes(relationship)) {
+      sourceId = newNodeId; // parent is the new node
+      targetId = selectedNodeId; // child is the selected node
+    }
+
     const newEdge: Edge = {
-      id: `edge-${selectedNodeId}-${newNodeId}`,
-      source: selectedNodeId,
-      target: newNodeId,
+      id: `edge-${sourceId}-${targetId}`,
+      source: sourceId,
+      target: targetId,
       type: 'smoothstep',
       style: { 
         stroke: '#3b82f6', 
@@ -284,10 +297,11 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     setEdges((eds) => [...eds, newEdge]);
 
     setShowAddDialog(false);
-    setNewMember({ name: '', email: '', phone: '', relationship: '' });
+    setNewMember({ name: '', email: '', phone: '', relationship: '', gender: '' });
   };
 
   const getOppositeRelationship = (relationship: string): string => {
+    if (!relationship || typeof relationship !== 'string') return "family";
     const opposites: Record<string, string> = {
       "father": "child",
       "mother": "child",
@@ -305,6 +319,28 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     return opposites[relationship.toLowerCase()] || "family";
   };
 
+  // Helper to get gender for a node
+  const getNodeGender = (node: any) => {
+    if (node.id === 'root') return registrationData.gender;
+    return node.data.gender || 'other';
+  };
+
+  // Helper to get child relationship type based on gender
+  const getChildRelationship = (gender: string) => {
+    if (gender === 'male') return 'son';
+    if (gender === 'female') return 'daughter';
+    return 'child';
+  };
+
+  // Helper to get parent relationship type based on gender
+  const getParentRelationship = (gender: string) => {
+    if (gender === 'male') return 'father';
+    if (gender === 'female') return 'mother';
+    return 'parent';
+  };
+
+  
+
   const handleComplete = async () => {
     if (nodes.length <= 1) {
       toast({
@@ -318,91 +354,107 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     setIsLoading(true);
     try {
       console.log('Starting family tree creation...');
-      
-      // Create family tree
       const familyTreeId = generateId('FT');
-      console.log('Generated family tree ID:', familyTreeId);
-      
       await createFamilyTree({
         familyTreeId,
         createdBy: 'self',
         createdAt: getCurrentDateTime(),
       });
-      console.log('Family tree created successfully');
 
-      // Create the root user (the person who registered)
+      // 1. Create all users and build a nodeId → userId map
+      const nodeIdToUserId: Record<string, string> = {};
+      // Create root user
       const rootUser = await createUser({
         userId: generateId('U'),
         name: registrationData.name,
         email: registrationData.email,
         password: registrationData.password,
         status: 'active' as const,
-        familyTreeId: familyTreeId,
+        familyTreeId,
         createdBy: 'self',
         createdAt: getCurrentDateTime(),
+        gender: registrationData.gender,
       });
-      console.log('Root user created:', rootUser);
-
-      // Store root user data in localStorage
+      nodeIdToUserId['root'] = rootUser.userId;
       localStorage.setItem("userId", rootUser.userId);
       localStorage.setItem("userData", JSON.stringify(rootUser));
 
-      // Create family members and relationships
+      // Create all other users
       for (const node of nodes) {
         if (node.id !== 'root') {
-          console.log('Creating family member:', node.data.name);
-          
-          // Create family member
-          const memberData = {
-            userId: generateId('U'),
-            name: node.data.name,
-            email: node.data.email,
-            phone: node.data.phone,
-            status: 'invited' as const,
-            familyTreeId: familyTreeId,
-            createdBy: rootUser.userId,
-            createdAt: getCurrentDateTime(),
-            myRelationship: node.data.relationship
-          };
-          
-          const createdMember = await createUser(memberData);
-          console.log('Created family member:', createdMember);
-          
-          // Find the relationship edge
-          const relationshipEdge = edges.find(edge => edge.target === node.id);
-          if (relationshipEdge) {
-            const sourceNode = nodes.find(n => n.id === relationshipEdge.source);
-            if (sourceNode) {
-              // Determine user IDs for relationship
-              const sourceUserId = sourceNode.id === 'root' ? rootUser.userId : 
-                nodes.find(n => n.id === sourceNode.id)?.data.userId || rootUser.userId;
-              
-              const relationship1 = node.data.relationship;
-              const relationship2 = getOppositeRelationship(relationship1);
-              
-              console.log(`Creating relationship: ${sourceUserId} -> ${createdMember.userId} (${relationship2} -> ${relationship1})`);
-              
-              await createReciprocalRelationship(
-                familyTreeId,
-                sourceUserId,
-                createdMember.userId,
-                relationship2,
-                relationship1
-              );
-              console.log('Relationship created successfully');
-            }
+          let createdMember = null;
+          let memberUserId = null;
+          let existingUser = await getUserByEmailOrId(node.data.email);
+          if (!existingUser && node.data.userId) {
+            existingUser = await getUserByEmailOrId(node.data.userId);
           }
+          if (existingUser) {
+            createdMember = existingUser;
+            memberUserId = existingUser.userId;
+          } else {
+            const memberData = {
+              userId: generateId('U'),
+              name: node.data.name,
+              email: node.data.email,
+              phone: node.data.phone,
+              status: 'invited' as const,
+              familyTreeId,
+              createdBy: rootUser.userId,
+              createdAt: getCurrentDateTime(),
+              myRelationship: node.data.relationship,
+              gender: node.data.gender || 'other',
+            };
+            createdMember = await createUser(memberData);
+            memberUserId = createdMember.userId;
+          }
+          nodeIdToUserId[node.id] = memberUserId;
         }
       }
 
-      console.log('Family tree creation completed successfully!');
-      
+      // 2. Create relationships for every edge
+      for (const edge of edges) {
+        const sourceNode = nodes.find(n => n.id === edge.source);
+        const targetNode = nodes.find(n => n.id === edge.target);
+        if (!sourceNode || !targetNode) continue;
+
+        const parentNode = sourceNode;
+        const childNode = targetNode;
+        const parentUserId = nodeIdToUserId[parentNode.id];
+        const childUserId = nodeIdToUserId[childNode.id];
+        const parentGender = parentNode.data.gender || 'other';
+        const childGender = childNode.data.gender || 'other';
+
+        // Determine relationship type based on edge or node data
+        let relationship1 = '';
+        let relationship2 = '';
+        // If the edge represents a parent relationship
+        const rel = childNode.data.relationship?.toLowerCase();
+
+        if (
+          ["father", "mother", "grandfather", "grandmother", "son", "daughter", "grandson", "granddaughter"].includes(rel)
+        ) {
+          // Use the actual relationship selected by the user
+          relationship1 = rel;
+          relationship2 = getOppositeRelationship(rel);
+        } else {
+          relationship1 = rel;
+          relationship2 = getOppositeRelationship(rel);
+        }
+
+        await createReciprocalRelationship(
+          familyTreeId,
+          parentUserId,
+          childUserId,
+          relationship1,
+          relationship2
+        );
+      }
+
       toast({
         title: "Family Tree Created!",
         description: "Your family tree has been saved successfully.",
       });
 
-      // Navigate to dashboard with user data
       navigate('/dashboard', { 
         state: { user: rootUser },
         replace: true 
@@ -419,6 +471,7 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="h-screen w-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col overflow-hidden">
@@ -488,6 +541,21 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
                 className="mt-1"
               />
             </div>
+            <div>
+              <Label htmlFor="gender" className="text-sm font-medium">Gender *</Label>
+              <select
+                id="gender"
+                value={newMember.gender}
+                onChange={e => setNewMember({ ...newMember, gender: e.target.value })}
+                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring mt-1"
+                required
+              >
+                <option value="">Select gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
             
             <div>
               <Label htmlFor="relationship" className="text-sm font-medium">Relationship *</Label>
@@ -542,7 +610,7 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
               <Button 
                 onClick={addFamilyMember}
                 className="flex-1 bg-blue-600 hover:bg-blue-700"
-                disabled={!newMember.name || !newMember.email || !newMember.relationship}
+                disabled={!newMember.name || !newMember.email || !newMember.relationship || !newMember.gender}
               >
                 Add Member
               </Button>
