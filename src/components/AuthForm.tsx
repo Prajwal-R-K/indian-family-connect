@@ -6,20 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  createUser,
-  verifyPassword,
-  getUserByEmailOrId,
-} from "@/lib/neo4j";
-import { generateId, getCurrentDateTime } from "@/lib/utils";
+import { getUserByEmailOrId, verifyPassword } from "@/lib/neo4j";
 import { cn } from "@/lib/utils";
 import { Icons } from "@/components/icons";
 import { Separator } from "@/components/ui/separator";
-import { useSearchParams } from "react-router-dom";
 import { PasswordInput } from "./ui/password-input";
 import FamilyTreeBuilder from "./FamilyTreeBuilder";
-
-interface AuthFormProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 const AuthForm = () => {
   const navigate = useNavigate();
@@ -27,13 +19,12 @@ const AuthForm = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isRegister, setIsRegister] = useState<boolean>(false);
   const [showFamilyTreeBuilder, setShowFamilyTreeBuilder] = useState<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [searchParams] = useSearchParams();
-  const invitationId = searchParams.get("invitationId");
+  const [registrationData, setRegistrationData] = useState<any>(null);
   const [input, setInput] = React.useState({
     name: "",
     email: "",
     password: "",
+    confirmPassword: "",
   });
 
   const isValidEmail = (email: string) => {
@@ -126,7 +117,7 @@ const AuthForm = () => {
 
   const handleRegister = async (e: React.SyntheticEvent) => {
     e.preventDefault();
-    if (!input.name || !input.email || !input.password) {
+    if (!input.name || !input.email || !input.password || !input.confirmPassword) {
       toast({
         title: "Missing fields",
         description: "Please enter all the required fields.",
@@ -144,9 +135,28 @@ const AuthForm = () => {
       return;
     }
 
+    if (input.password !== input.confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        description: "Please make sure your passwords match.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (input.password.length < 6) {
+      toast({
+        title: "Password too short",
+        description: "Password must be at least 6 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
+      // Phase 1: Just validate and store in temp state, no DB operations yet
       const existingUser = await getUserByEmailOrId(input.email);
       if (existingUser) {
         toast({
@@ -157,30 +167,25 @@ const AuthForm = () => {
         return;
       }
 
-      const hashedPassword = await createUser({
-        userId: generateId("U"),
+      // Store registration data and move to family tree builder
+      const tempUserData = {
         name: input.name,
         email: input.email,
         password: input.password,
-        status: "active",
-        familyTreeId: generateId("FT"),
-        createdBy: "self",
-        createdAt: getCurrentDateTime(),
-      });
+      };
 
-      localStorage.setItem("userId", hashedPassword.userId);
-      localStorage.setItem("userData", JSON.stringify(hashedPassword));
-      toast({
-        title: "Registration successful",
-        description: "You have successfully registered.",
-      });
-      setCurrentUser(hashedPassword);
+      setRegistrationData(tempUserData);
       setShowFamilyTreeBuilder(true);
+
+      toast({
+        title: "Registration data validated",
+        description: "Now let's build your family tree!",
+      });
     } catch (error) {
-      console.error("Registration error:", error);
+      console.error("Registration validation error:", error);
       toast({
         title: "Registration failed",
-        description: "Failed to register. Please try again later.",
+        description: "Failed to validate registration. Please try again later.",
         variant: "destructive",
       });
     } finally {
@@ -198,13 +203,14 @@ const AuthForm = () => {
     // Navigate to dashboard
     navigate('/dashboard', { 
       state: { 
-        user: currentUser 
+        user: familyData.rootUser 
       } 
     });
   };
 
   const handleBackToAuth = () => {
     setShowFamilyTreeBuilder(false);
+    setRegistrationData(null);
   };
 
   return (
@@ -213,7 +219,7 @@ const AuthForm = () => {
         <FamilyTreeBuilder 
           onComplete={handleFamilyTreeComplete}
           onBack={handleBackToAuth}
-          user={currentUser}
+          registrationData={registrationData}
         />
       ) : (
         <Card className="w-[350px]">
@@ -264,6 +270,19 @@ const AuthForm = () => {
                 onChange={handleChange}
               />
             </div>
+            {isRegister && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <PasswordInput
+                  id="confirmPassword"
+                  placeholder="Confirm your password"
+                  required
+                  name="confirmPassword"
+                  value={input.confirmPassword}
+                  onChange={handleChange}
+                />
+              </div>
+            )}
             <Button
               className="w-full"
               onClick={isRegister ? handleRegister : handleLogin}
@@ -276,7 +295,7 @@ const AuthForm = () => {
                 </>
               ) : (
                 <>
-                  {isRegister ? "Create account" : "Login"}
+                  {isRegister ? "Build Your Family Tree" : "Login"}
                   {!isRegister ? (
                     <svg
                       xmlns="http://www.w3.org/2000/svg"

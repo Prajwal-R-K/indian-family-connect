@@ -21,8 +21,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, User, Save, ArrowLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { createUser, createReciprocalRelationship } from '@/lib/neo4j';
-import { generateId } from '@/lib/utils';
+import { createUser, createReciprocalRelationship, getUserByEmailOrId, createFamilyTree } from '@/lib/neo4j';
+import { generateId, getCurrentDateTime } from '@/lib/utils';
 
 interface FamilyMemberNode extends Node {
   data: {
@@ -84,10 +84,10 @@ const nodeTypes = {
 interface FamilyTreeBuilderProps {
   onComplete: (familyData: any) => void;
   onBack: () => void;
-  user: any;
+  registrationData: any;
 }
 
-const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBack, user }) => {
+const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBack, registrationData }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -100,23 +100,25 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  // Initialize with "You" node in center
+  // Initialize with "You" node in center using registration data
   useEffect(() => {
-    const rootNode: FamilyMemberNode = {
-      id: 'root',
-      type: 'familyMember',
-      position: { x: 0, y: 0 },
-      data: {
-        label: user?.name || 'You',
-        name: user?.name || 'You',
-        email: user?.email || '',
-        generation: 0,
-        isRoot: true,
-        onAddRelation: handleAddRelation
-      }
-    };
-    setNodes([rootNode]);
-  }, [user]);
+    if (registrationData) {
+      const rootNode: FamilyMemberNode = {
+        id: 'root',
+        type: 'familyMember',
+        position: { x: 0, y: 0 },
+        data: {
+          label: registrationData.name,
+          name: registrationData.name,
+          email: registrationData.email,
+          generation: 0,
+          isRoot: true,
+          onAddRelation: handleAddRelation
+        }
+      };
+      setNodes([rootNode]);
+    }
+  }, [registrationData]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -127,6 +129,24 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     setSelectedNodeId(nodeId);
     setShowAddDialog(true);
     setNewMember({ name: '', email: '', phone: '', relationship: '' });
+  };
+
+  // Check if email already exists in current tree or in database
+  const checkEmailExists = async (email: string): Promise<boolean> => {
+    // Check in current tree first
+    const existsInTree = nodes.some(node => node.data.email === email);
+    if (existsInTree) {
+      return true;
+    }
+
+    // Check in database
+    try {
+      const existingUser = await getUserByEmailOrId(email);
+      return existingUser !== null;
+    } catch (error) {
+      console.error('Error checking email:', error);
+      return false;
+    }
   };
 
   // Calculate generation based on relationship
@@ -156,20 +176,16 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     const parentGeneration = typeof parentNode.data?.generation === 'number' ? parentNode.data.generation : 0;
     const generation = getGeneration(relationship, parentGeneration);
     
-    // Enhanced spacing
     const generationSpacing = 300;
     const siblingSpacing = 400;
     
-    // Calculate Y position based on generation
     const baseY = (generation * generationSpacing);
     
-    // Count existing nodes in this generation
     const nodesInGeneration = existingNodes.filter(node => {
       const nodeGeneration = typeof node.data?.generation === 'number' ? node.data.generation : 0;
       return nodeGeneration === generation;
     });
     
-    // For spouses, place them side by side
     if (['husband', 'wife'].includes(relationship)) {
       return {
         x: parentPos.x + (relationship === 'husband' ? -300 : 300),
@@ -177,7 +193,6 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       };
     }
     
-    // For siblings, place them in the same row with proper spacing
     if (['brother', 'sister'].includes(relationship)) {
       const siblingsCount = nodesInGeneration.length;
       return {
@@ -186,10 +201,8 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       };
     }
     
-    // For parents and children, distribute them horizontally
     const nodesCount = nodesInGeneration.length;
     
-    // For parents (generation -1), place them above
     if (generation < parentGeneration) {
       return {
         x: parentPos.x + (nodesCount * 400) - (nodesCount > 0 ? 200 : 0),
@@ -197,15 +210,25 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       };
     }
     
-    // For children (generation +1), place them below
     return {
       x: parentPos.x + (nodesCount * 350) - (nodesCount > 0 ? 175 : 0),
       y: baseY
     };
   };
 
-  const addFamilyMember = () => {
+  const addFamilyMember = async () => {
     if (!newMember.name || !newMember.email || !newMember.relationship || !selectedNodeId) {
+      return;
+    }
+
+    // Check for email duplicates
+    const emailExists = await checkEmailExists(newMember.email);
+    if (emailExists) {
+      toast({
+        title: "Email already exists",
+        description: "This email is already in use. Please use a different email.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -216,7 +239,6 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
     const selectedGeneration = typeof selectedNode.data?.generation === 'number' ? selectedNode.data.generation : 0;
     const generation = getGeneration(newMember.relationship, selectedGeneration);
     
-    // Calculate position based on tree structure
     const position = calculateNodePosition(selectedNode, newMember.relationship, nodes);
     
     const newNode: FamilyMemberNode = {
@@ -234,7 +256,6 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       }
     };
 
-    // Create edge with proper styling
     const newEdge: Edge = {
       id: `edge-${selectedNodeId}-${newNodeId}`,
       source: selectedNodeId,
@@ -283,12 +304,45 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
   };
 
   const handleComplete = async () => {
+    if (nodes.length <= 1) {
+      toast({
+        title: "Add family members",
+        description: "Please add at least one family member before creating the tree.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Create family tree data structure
-      const familyTreeId = user.familyTreeId;
+      // Phase 3: Create family tree and save to Neo4j
+      const familyTreeId = generateId('FT');
       
-      // Store all family members in Neo4j
+      // Create the family tree
+      await createFamilyTree({
+        familyTreeId,
+        createdBy: 'self',
+        createdAt: getCurrentDateTime(),
+      });
+
+      // Create the root user (the person who registered)
+      const rootUser = await createUser({
+        userId: generateId('U'),
+        name: registrationData.name,
+        email: registrationData.email,
+        password: registrationData.password,
+        status: 'active' as const,
+        familyTreeId: familyTreeId,
+        createdBy: 'self',
+        createdAt: getCurrentDateTime(),
+      });
+
+      // Store root user data
+      localStorage.setItem("userId", rootUser.userId);
+      localStorage.setItem("userData", JSON.stringify(rootUser));
+
+      // Create family members
+      const createdMembers = [];
       for (const node of nodes) {
         if (node.id !== 'root') {
           const memberData = {
@@ -296,28 +350,29 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
             name: node.data.name,
             email: node.data.email,
             phone: node.data.phone,
-            status: 'invited' as const, // Fix the type issue
+            status: 'invited' as const,
             familyTreeId: familyTreeId,
-            createdBy: user.userId,
-            createdAt: new Date().toISOString(),
+            createdBy: rootUser.userId,
+            createdAt: getCurrentDateTime(),
             myRelationship: node.data.relationship
           };
           
-          await createUser(memberData);
+          const createdMember = await createUser(memberData);
+          createdMembers.push(createdMember);
           
           // Create relationships
           const selectedEdge = edges.find(edge => edge.target === node.id);
           if (selectedEdge) {
             const sourceNode = nodes.find(n => n.id === selectedEdge.source);
             if (sourceNode) {
-              const sourceUserId = sourceNode.id === 'root' ? user.userId : sourceNode.data.userId;
+              const sourceUserId = sourceNode.id === 'root' ? rootUser.userId : sourceNode.data.userId;
               const relationship1 = node.data.relationship;
               const relationship2 = getOppositeRelationship(relationship1);
               
               await createReciprocalRelationship(
                 familyTreeId,
                 sourceUserId,
-                memberData.userId,
+                createdMember.userId,
                 relationship2,
                 relationship1
               );
@@ -332,7 +387,8 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       });
 
       onComplete({
-        members: nodes.filter(n => n.id !== 'root'),
+        rootUser,
+        members: createdMembers,
         relationships: edges
       });
     } catch (error) {
@@ -349,7 +405,6 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
 
   return (
     <div className="h-screen w-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col overflow-hidden">
-      {/* Header - Fixed */}
       <div className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shadow-sm z-10">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Build Your Family Tree</h1>
@@ -370,12 +425,11 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
           >
             <Save className="w-4 h-4" />
-            {isLoading ? 'Saving...' : 'Save Family Tree'}
+            {isLoading ? 'Creating...' : 'Create Family Tree'}
           </Button>
         </div>
       </div>
 
-      {/* Main Canvas - Scrollable */}
       <div className="flex-1 relative overflow-hidden">
         <ReactFlow
           nodes={nodes}
@@ -401,7 +455,6 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
         </ReactFlow>
       </div>
 
-      {/* Add Member Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
