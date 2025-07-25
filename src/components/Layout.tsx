@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Link } from "react-router-dom";
 import Logo from "./Logo";
@@ -52,14 +51,7 @@ const Layout: React.FC<LayoutProps> = ({ children, isLoggedIn = false, onLogout 
               </div>
             ) : (
               <div className="flex items-center space-x-4">
-                <Link to="/auth" className="text-isn-secondary hover:text-isn-secondary/80">
-                  Login
-                </Link>
-                <Link to="/auth">
-                  <Button size="sm" className="bg-isn-primary hover:bg-isn-primary/90">
-                    Create Family Tree
-                  </Button>
-                </Link>
+                {/* Removed "Create Family Tree" button for not logged in users */}
               </div>
             )}
           </nav>
