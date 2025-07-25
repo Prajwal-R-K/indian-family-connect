@@ -23,6 +23,7 @@ import { Plus, User, Save, ArrowLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { createUser, createReciprocalRelationship, getUserByEmailOrId, createFamilyTree } from '@/lib/neo4j';
 import { generateId, getCurrentDateTime } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 interface FamilyMemberNode extends Node {
   data: {
@@ -88,6 +89,7 @@ interface FamilyTreeBuilderProps {
 }
 
 const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBack, registrationData }) => {
+  const navigate = useNavigate();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -315,15 +317,18 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
 
     setIsLoading(true);
     try {
-      // Phase 3: Create family tree and save to Neo4j
-      const familyTreeId = generateId('FT');
+      console.log('Starting family tree creation...');
       
-      // Create the family tree
+      // Create family tree
+      const familyTreeId = generateId('FT');
+      console.log('Generated family tree ID:', familyTreeId);
+      
       await createFamilyTree({
         familyTreeId,
         createdBy: 'self',
         createdAt: getCurrentDateTime(),
       });
+      console.log('Family tree created successfully');
 
       // Create the root user (the person who registered)
       const rootUser = await createUser({
@@ -336,15 +341,18 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
         createdBy: 'self',
         createdAt: getCurrentDateTime(),
       });
+      console.log('Root user created:', rootUser);
 
-      // Store root user data
+      // Store root user data in localStorage
       localStorage.setItem("userId", rootUser.userId);
       localStorage.setItem("userData", JSON.stringify(rootUser));
 
-      // Create family members
-      const createdMembers = [];
+      // Create family members and relationships
       for (const node of nodes) {
         if (node.id !== 'root') {
+          console.log('Creating family member:', node.data.name);
+          
+          // Create family member
           const memberData = {
             userId: generateId('U'),
             name: node.data.name,
@@ -358,16 +366,21 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
           };
           
           const createdMember = await createUser(memberData);
-          createdMembers.push(createdMember);
+          console.log('Created family member:', createdMember);
           
-          // Create relationships
-          const selectedEdge = edges.find(edge => edge.target === node.id);
-          if (selectedEdge) {
-            const sourceNode = nodes.find(n => n.id === selectedEdge.source);
+          // Find the relationship edge
+          const relationshipEdge = edges.find(edge => edge.target === node.id);
+          if (relationshipEdge) {
+            const sourceNode = nodes.find(n => n.id === relationshipEdge.source);
             if (sourceNode) {
-              const sourceUserId = sourceNode.id === 'root' ? rootUser.userId : sourceNode.data.userId;
+              // Determine user IDs for relationship
+              const sourceUserId = sourceNode.id === 'root' ? rootUser.userId : 
+                nodes.find(n => n.id === sourceNode.id)?.data.userId || rootUser.userId;
+              
               const relationship1 = node.data.relationship;
               const relationship2 = getOppositeRelationship(relationship1);
+              
+              console.log(`Creating relationship: ${sourceUserId} -> ${createdMember.userId} (${relationship2} -> ${relationship1})`);
               
               await createReciprocalRelationship(
                 familyTreeId,
@@ -376,21 +389,25 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
                 relationship2,
                 relationship1
               );
+              console.log('Relationship created successfully');
             }
           }
         }
       }
 
+      console.log('Family tree creation completed successfully!');
+      
       toast({
         title: "Family Tree Created!",
         description: "Your family tree has been saved successfully.",
       });
 
-      onComplete({
-        rootUser,
-        members: createdMembers,
-        relationships: edges
+      // Navigate to dashboard with user data
+      navigate('/dashboard', { 
+        state: { user: rootUser },
+        replace: true 
       });
+
     } catch (error) {
       console.error('Error saving family tree:', error);
       toast({

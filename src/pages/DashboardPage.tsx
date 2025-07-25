@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import Layout from "@/components/Layout";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/AppSidebar";
 import Dashboard from "@/components/Dashboard";
 import { User } from "@/types";
 import { getUserByEmailOrId } from "@/lib/neo4j";
@@ -97,36 +98,48 @@ const DashboardPage = () => {
   
   if (isLoading) {
     return (
-      <Layout>
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="animate-pulse flex flex-col items-center">
-            <div className="h-12 w-12 bg-isn-primary/30 rounded-full mb-4"></div>
-            <p>Loading your dashboard...</p>
-          </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="h-12 w-12 bg-blue-500/30 rounded-full mb-4"></div>
+          <p>Loading your dashboard...</p>
         </div>
-      </Layout>
+      </div>
     );
   }
   
   if (!user) {
     return (
-      <Layout>
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <p>User not found. Please <button 
-            className="text-isn-primary hover:underline" 
-            onClick={() => navigate('/auth')}
-          >
-            login
-          </button>.</p>
-        </div>
-      </Layout>
+      <div className="min-h-screen flex items-center justify-center">
+        <p>User not found. Please <button 
+          className="text-blue-500 hover:underline" 
+          onClick={() => navigate('/auth')}
+        >
+          login
+        </button>.</p>
+      </div>
     );
   }
   
   return (
-    <Layout isLoggedIn={true} onLogout={handleLogout}>
-      <Dashboard user={user} />
-    </Layout>
+    <SidebarProvider collapsedWidth={56}>
+      <header className="h-12 flex items-center border-b bg-white">
+        <SidebarTrigger className="ml-2" />
+        <div className="flex-1 flex justify-between items-center px-4">
+          <h1 className="text-xl font-semibold">Family Tree Platform</h1>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">Welcome, {user.name}</span>
+            <span className="text-xs text-gray-500">ID: {user.familyTreeId}</span>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex min-h-screen w-full">
+        <AppSidebar onLogout={handleLogout} />
+        <main className="flex-1 p-6 bg-gradient-to-br from-slate-50 to-blue-50">
+          <Dashboard user={user} />
+        </main>
+      </div>
+    </SidebarProvider>
   );
 };
 
