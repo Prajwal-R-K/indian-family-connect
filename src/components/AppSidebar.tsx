@@ -41,22 +41,23 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ onLogout }: AppSidebarProps) {
-  const { collapsed } = useSidebar();
+  const { state } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
 
   const isActive = (path: string) => currentPath === path;
   const isExpanded = navigationItems.some((item) => isActive(item.url));
+  const collapsed = state === "collapsed";
 
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-muted text-primary font-medium' : 'hover:bg-muted/50';
 
   return (
-    <Sidebar className={collapsed ? 'w-14' : 'w-60'} collapsible>
+    <Sidebar className={collapsed ? 'w-14' : 'w-60'} collapsible="icon">
       <SidebarTrigger className="m-2 self-end" />
 
       <SidebarContent>
-        <SidebarGroup open={isExpanded}>
+        <SidebarGroup defaultOpen={isExpanded}>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>

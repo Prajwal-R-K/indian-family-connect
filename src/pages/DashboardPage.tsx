@@ -121,7 +121,7 @@ const DashboardPage = () => {
   }
   
   return (
-    <SidebarProvider collapsedWidth={56}>
+    <SidebarProvider>
       <header className="h-12 flex items-center border-b bg-white">
         <SidebarTrigger className="ml-2" />
         <div className="flex-1 flex justify-between items-center px-4">
