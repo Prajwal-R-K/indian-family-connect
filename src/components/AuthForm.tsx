@@ -9,9 +9,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { AuthFormValues, User } from '@/types';
 import { 
-  loginUser, 
-  registerUser, 
-  checkEmailExists
+  createUser, 
+  getUserByEmailOrId, 
+  checkEmailExists,
+  verifyPassword
 } from '@/lib/neo4j';
 import { generateId } from '@/lib/utils';
 import { Eye, EyeOff, TreePine, Users, LogIn, UserPlus } from 'lucide-react';
@@ -37,8 +38,6 @@ const AuthForm = () => {
     confirmPassword: ''
   });
 
-  const [pendingUser, setPendingUser] = useState<any>(null);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginForm.email || !loginForm.password) {
@@ -53,21 +52,31 @@ const AuthForm = () => {
     setIsLoading(true);
     try {
       console.log("Attempting login for:", loginForm.email);
-      const user = await loginUser(loginForm.email, loginForm.password);
+      const user = await getUserByEmailOrId(loginForm.email);
       
-      if (user) {
-        console.log("Login successful:", user);
-        toast({
-          title: "Welcome back!",
-          description: "You have been logged in successfully.",
-        });
-        
-        // Store user in localStorage for session management
-        localStorage.setItem('currentUser', JSON.stringify(user));
-        
-        // Navigate to dashboard
-        navigate('/dashboard');
+      if (!user) {
+        throw new Error("User not found");
       }
+
+      if (user.status !== 'active') {
+        throw new Error("Account is not active");
+      }
+
+      if (!user.password || !verifyPassword(loginForm.password, user.password)) {
+        throw new Error("Invalid password");
+      }
+      
+      console.log("Login successful:", user);
+      toast({
+        title: "Welcome back!",
+        description: "You have been logged in successfully.",
+      });
+      
+      // Store user in localStorage for session management
+      localStorage.setItem('currentUser', JSON.stringify(user));
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
     } catch (error: any) {
       console.error('Login error:', error);
       toast({
@@ -131,10 +140,9 @@ const AuthForm = () => {
         email: registerForm.email,
         password: registerForm.password,
         status: 'active' as const,
+        familyTreeId: '', // Will be set when family tree is created
         createdAt: new Date().toISOString()
       };
-
-      setPendingUser(pendingUserData);
       
       toast({
         title: "Account Ready!",
