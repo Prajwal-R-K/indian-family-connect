@@ -138,6 +138,7 @@ export const createReciprocalRelationship = async (
 };
 
 // Get full family tree visualization data - updated for RELATES_TO
+// Get full family tree visualization data - updated for RELATES_TO
 export const getFamilyTreeVisualizationData = async (familyTreeId: string) => {
   try {
     // Get all nodes and relationships in one query
@@ -147,9 +148,9 @@ export const getFamilyTreeVisualizationData = async (familyTreeId: string) => {
       RETURN u.userId AS id, u.name AS name, u.status AS status, u.myRelationship AS myRelationship,
              u.profilePicture AS profilePicture, collect({target: other.userId, type: r.relationship}) AS relationships
     `;
-    
+
     const result = await runQuery(cypher, { familyTreeId });
-    
+
     // Format data for visualization
     const nodes = result.map(record => ({
       id: record.id,
@@ -158,7 +159,7 @@ export const getFamilyTreeVisualizationData = async (familyTreeId: string) => {
       myRelationship: record.myRelationship,
       profilePicture: record.profilePicture
     }));
-    
+
     // Extract all relationships
     const links: any[] = [];
     result.forEach(record => {
@@ -174,13 +175,14 @@ export const getFamilyTreeVisualizationData = async (familyTreeId: string) => {
         });
       }
     });
-    
+
     return { nodes, links };
   } catch (error) {
     console.error("Error getting family tree visualization data:", error);
     return { nodes: [], links: [] };
   }
 };
+
 
 // Get personal family tree view for a specific user
 export const getUserPersonalFamilyView = async (userId: string, familyTreeId: string) => {

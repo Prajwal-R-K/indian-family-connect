@@ -20,9 +20,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, User, Save, ArrowLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { createUser, createReciprocalRelationship, getUserByEmailOrId, createFamilyTree } from '@/lib/neo4j';
+import { createUser, getUserByEmailOrId, createFamilyTree } from '@/lib/neo4j';
 import { generateId, getCurrentDateTime } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { runQuery } from '@/lib/neo4j/connection'; // Import runQuery
+
+// Helper function to create relationships in Neo4j - Defined OUTSIDE the component
+const createRelationshipInNeo4j = async (
+  familyTreeId: string,
+  sourceUserId: string,
+  targetUserId: string,
+  relationshipType: string
+) => {
+   try {
+      const cypher = `
+         MATCH (source:User {familyTreeId: $familyTreeId, userId: $sourceUserId})
+         MATCH (target:User {familyTreeId: $familyTreeId, userId: $targetUserId})
+         CREATE (source)-[:RELATES_TO {relationship: $relationshipType}]->(target)
+         RETURN source.userId as sourceId, target.userId as targetId
+      `;
+
+      const result = await runQuery(cypher, {
+         familyTreeId,
+         sourceUserId,
+         targetUserId,
+         relationshipType: relationshipType.toLowerCase(), // Store in lowercase
+      });
+
+      return !!result;
+   } catch (error) {
+      console.error(`Error creating ${relationshipType} relationship:`, error);
+      return false;
+   }
+};
+
 
 interface FamilyMemberNode extends Node {
   data: {
@@ -49,12 +80,12 @@ const FamilyNode = ({ data, id }: { data: any; id: string }) => {
     <div className="relative bg-white border-2 border-blue-200 rounded-xl p-4 min-w-[200px] shadow-lg hover:shadow-xl transition-shadow">
       <Handle type="target" position={Position.Top} className="w-3 h-3 bg-blue-500" />
       <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-blue-500" />
-      
+
       <div className="flex flex-col items-center space-y-3">
         <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
           <User className="w-8 h-8 text-white" />
         </div>
-        
+
         <div className="text-center">
           <div className="font-semibold text-slate-800 text-sm">{data.name}</div>
           <div className="text-xs text-slate-600">{data.email}</div>
@@ -64,7 +95,7 @@ const FamilyNode = ({ data, id }: { data: any; id: string }) => {
             </div>
           )}
         </div>
-        
+
         <Button
           size="sm"
           variant="outline"
@@ -171,48 +202,53 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
 
   // Enhanced position calculation for proper tree structure
   const calculateNodePosition = (
-    parentNode: Node, 
-    relationship: string, 
+    parentNode: Node,
+    relationship: string,
     existingNodes: Node[]
   ): { x: number; y: number } => {
     const parentPos = parentNode.position;
     const parentGeneration = typeof parentNode.data?.generation === 'number' ? parentNode.data.generation : 0;
     const generation = getGeneration(relationship, parentGeneration);
-    
+
     const generationSpacing = 300;
     const siblingSpacing = 400;
-    
+
     const baseY = (generation * generationSpacing);
-    
+
     const nodesInGeneration = existingNodes.filter(node => {
       const nodeGeneration = typeof node.data?.generation === 'number' ? node.data.generation : 0;
       return nodeGeneration === generation;
     });
-    
+
     if (['husband', 'wife'].includes(relationship)) {
       return {
         x: parentPos.x + (relationship === 'husband' ? -300 : 300),
         y: parentPos.y
       };
     }
-    
+
     if (['brother', 'sister'].includes(relationship)) {
-      const siblingsCount = nodesInGeneration.length;
+      const nodesInSiblingLevel = existingNodes.filter(node => {
+         const nodeGeneration = typeof node.data?.generation === 'number' ? node.data.generation : 0;
+         return nodeGeneration === parentGeneration && node.id !== parentNode.id; // Filter for siblings of the parent
+      });
+      const siblingCount = nodesInSiblingLevel.length;
       return {
-        x: parentPos.x + ((siblingsCount + 1) * siblingSpacing) - (siblingsCount * siblingSpacing / 2),
-        y: baseY
+         x: parentPos.x + ((siblingCount + 1) * siblingSpacing) - (siblingCount * siblingSpacing / 2),
+         y: baseY
       };
     }
-    
+
     const nodesCount = nodesInGeneration.length;
-    
+
     if (generation < parentGeneration) {
-      return {
-        x: parentPos.x + (nodesCount * 400) - (nodesCount > 0 ? 200 : 0),
-        y: baseY
-      };
-    }
-    
+       // Position ancestors above the parent, spread out horizontally
+       return {
+         x: parentPos.x + (nodesCount * 300) - (nodesCount > 0 ? 150 : 0),
+         y: baseY
+       };
+     }
+
     return {
       x: parentPos.x + (nodesCount * 350) - (nodesCount > 0 ? 175 : 0),
       y: baseY
@@ -260,24 +296,14 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       }
     };
 
-    // Always connect from elder (parent) to younger (child)
-    let sourceId = selectedNodeId;
-    let targetId = newNodeId;
-    let relationship = newMember.relationship.toLowerCase();
-
-    // If user adds a parent (father/mother), reverse the edge direction
-    if (["father", "mother", "grandfather", "grandmother"].includes(relationship)) {
-      sourceId = newNodeId; // parent is the new node
-      targetId = selectedNodeId; // child is the selected node
-    }
-
+    // Create edge based on how the user connected nodes in the UI
     const newEdge: Edge = {
-      id: `edge-${sourceId}-${targetId}`,
-      source: sourceId,
-      target: targetId,
+      id: `edge-${selectedNodeId}-${newNodeId}`,
+      source: selectedNodeId,
+      target: newNodeId,
       type: 'smoothstep',
-      style: { 
-        stroke: '#3b82f6', 
+      style: {
+        stroke: '#3b82f6',
         strokeWidth: 3,
       },
       markerEnd: {
@@ -293,53 +319,34 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
         onAddRelation: handleAddRelation
       }
     })).concat([newNode]));
-    
+
     setEdges((eds) => [...eds, newEdge]);
 
     setShowAddDialog(false);
     setNewMember({ name: '', email: '', phone: '', relationship: '', gender: '' });
   };
 
-  const getOppositeRelationship = (relationship: string): string => {
-    if (!relationship || typeof relationship !== 'string') return "family";
-    const opposites: Record<string, string> = {
-      "father": "child",
-      "mother": "child",
-      "son": "parent",
-      "daughter": "parent",
-      "brother": "sibling",
-      "sister": "sibling",
-      "husband": "wife",
-      "wife": "husband",
-      "grandfather": "grandchild",
-      "grandmother": "grandchild",
-      "grandson": "grandparent",
-      "granddaughter": "grandparent"
-    };
-    return opposites[relationship.toLowerCase()] || "family";
-  };
+   // This function is not needed for storing unidirectional relationships as per new requirement
+   // const getOppositeRelationship = (relationship: string): string => {
+  //   if (!relationship || typeof relationship !== 'string') return "family";
+  //   const opposites: Record<string, string> = {
+  //     "father": "child",
+  //     "mother": "child",
+  //     "son": "parent",
+  //     "daughter": "parent",
+  //     "brother": "sibling",
+  //     "sister": "sibling",
+  //     "husband": "wife",
+  //     "wife": "husband",
+  //     "grandfather": "grandchild",
+  //     "grandmother": "grandchild",
+  //     "grandson": "grandparent",
+  //     "granddaughter": "grandparent"
+  //   };
+  //   return opposites[relationship.toLowerCase()] || "family";
+  // };
 
-  // Helper to get gender for a node
-  const getNodeGender = (node: any) => {
-    if (node.id === 'root') return registrationData.gender;
-    return node.data.gender || 'other';
-  };
 
-  // Helper to get child relationship type based on gender
-  const getChildRelationship = (gender: string) => {
-    if (gender === 'male') return 'son';
-    if (gender === 'female') return 'daughter';
-    return 'child';
-  };
-
-  // Helper to get parent relationship type based on gender
-  const getParentRelationship = (gender: string) => {
-    if (gender === 'male') return 'father';
-    if (gender === 'female') return 'mother';
-    return 'parent';
-  };
-
-  
 
   const handleComplete = async () => {
     if (nodes.length <= 1) {
@@ -411,43 +418,25 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
         }
       }
 
-      // 2. Create relationships for every edge
+      // 2. Create unidirectional relationships based on the edge direction and selected relationship
       for (const edge of edges) {
         const sourceNode = nodes.find(n => n.id === edge.source);
         const targetNode = nodes.find(n => n.id === edge.target);
         if (!sourceNode || !targetNode) continue;
 
-        const parentNode = sourceNode;
-        const childNode = targetNode;
-        const parentUserId = nodeIdToUserId[parentNode.id];
-        const childUserId = nodeIdToUserId[childNode.id];
-        const parentGender = parentNode.data.gender || 'other';
-        const childGender = childNode.data.gender || 'other';
+        const sourceUserId = nodeIdToUserId[sourceNode.id];
+        const targetUserId = nodeIdToUserId[targetNode.id];
+        const targetNodeRelationship = targetNode.data.relationship?.toLowerCase();
 
-        // Determine relationship type based on edge or node data
-        let relationship1 = '';
-        let relationship2 = '';
-        // If the edge represents a parent relationship
-        const rel = childNode.data.relationship?.toLowerCase();
-
-        if (
-          ["father", "mother", "grandfather", "grandmother", "son", "daughter", "grandson", "granddaughter"].includes(rel)
-        ) {
-          // Use the actual relationship selected by the user
-          relationship1 = rel;
-          relationship2 = getOppositeRelationship(rel);
-        } else {
-          relationship1 = rel;
-          relationship2 = getOppositeRelationship(rel);
+        // Store the relationship as it was created in the UI with the selected label
+        if (targetNodeRelationship) {
+            await createRelationshipInNeo4j(
+                familyTreeId,
+                sourceUserId,
+                targetUserId,
+                targetNodeRelationship // Use the selected relationship directly
+            );
         }
-
-        await createReciprocalRelationship(
-          familyTreeId,
-          parentUserId,
-          childUserId,
-          relationship1,
-          relationship2
-        );
       }
 
       toast({
@@ -455,9 +444,9 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
         description: "Your family tree has been saved successfully.",
       });
 
-      navigate('/dashboard', { 
+      navigate('/dashboard', {
         state: { user: rootUser },
-        replace: true 
+        replace: true
       });
 
     } catch (error) {
@@ -556,7 +545,7 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
                 <option value="other">Other</option>
               </select>
             </div>
-            
+
             <div>
               <Label htmlFor="relationship" className="text-sm font-medium">Relationship *</Label>
               <Select
@@ -600,14 +589,14 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
             </div>
 
             <div className="flex gap-3 pt-4">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowAddDialog(false)}
                 className="flex-1"
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={addFamilyMember}
                 className="flex-1 bg-blue-600 hover:bg-blue-700"
                 disabled={!newMember.name || !newMember.email || !newMember.relationship || !newMember.gender}
