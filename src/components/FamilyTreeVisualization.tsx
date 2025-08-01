@@ -95,7 +95,9 @@ const getReciprocalRelationship = (relationship: string, targetGender: string, s
 // Custom family member node component
 const FamilyMemberNode = ({ data, id }: { data: any; id: string }) => {
   const getNodeColor = () => {
-    if (data.isRoot) return 'border-amber-400 bg-amber-50';
+    // Use logged-in user (data.loginUserId) to determine crown color;
+    // the node whose id matches loginUserId gets the crown.
+    if (data.userId === data.loginUserId) return 'border-amber-400 bg-amber-50';
     if (data.gender === 'male') return 'border-blue-400 bg-blue-50';
     if (data.gender === 'female') return 'border-pink-400 bg-pink-50';
     return 'border-gray-400 bg-gray-50';
@@ -123,7 +125,8 @@ const FamilyMemberNode = ({ data, id }: { data: any; id: string }) => {
               {data.relationship}
             </Badge>
           )}
-          {data.isRoot && (
+          {/* Show crown if this node is the logged-in user */}
+          {data.userId === data.loginUserId && (
             <Crown className="w-4 h-4 text-amber-500 mx-auto mt-1" />
           )}
         </div>
@@ -133,10 +136,12 @@ const FamilyMemberNode = ({ data, id }: { data: any; id: string }) => {
 };
 
 // Calculate positions based on heritage layout logic
+// Added a new parameter: loggedInUserId
 const calculateNodePositions = (
   members: FamilyMember[], 
   relationships: Relationship[], 
-  createdByUserId: string
+  createdByUserId: string,
+  loggedInUserId: string
 ): { nodes: Node[]; edges: Edge[] } => {
   const nodeMap = new Map<string, FamilyMember>();
   members.forEach(member => nodeMap.set(member.userId, member));
@@ -185,13 +190,11 @@ const calculateNodePositions = (
           xOffset = ancestorCount * 200 - ((nodeRelationships.filter(r => getRelationshipCategory(r.type) === 'ancestor').length - 1) * 100);
           ancestorCount++;
           break;
-          
         case 'descendant':
           targetGeneration = currentPos.generation + 1;
           xOffset = descendantCount * 200 - ((nodeRelationships.filter(r => getRelationshipCategory(r.type) === 'descendant').length - 1) * 100);
           descendantCount++;
           break;
-          
         case 'sibling':
         default:
           targetGeneration = currentPos.generation;
@@ -228,6 +231,9 @@ const calculateNodePositions = (
         relationship: member.relationship,
         profilePicture: member.profilePicture,
         gender: member.gender,
+        userId: member.userId,
+        // Pass loggedInUserId from auth (currently logged in user)
+        loginUserId: loggedInUserId,
         isRoot: userId === createdByUserId,
         status: member.status
       }
@@ -243,20 +249,36 @@ const calculateNodePositions = (
     const sourceMember = nodeMap.get(rel.source); // Original source
     const targetMember = nodeMap.get(rel.target); // Original target
     
-    if (!sourceMember?.gender || !targetMember?.gender) {
-      throw new Error(`Missing gender for userId ${rel.source} or ${rel.target}`);
+    // Skip edges where members are missing or don't have gender
+    if (!sourceMember || !targetMember || !sourceMember.gender || !targetMember.gender) {
+      console.warn(`Skipping edge for missing members or gender: ${rel.source} -> ${rel.target}`);
+      return null;
     }
 
-    // Use original relationship type as basis, adjust direct based on direction and target gender
+    // Determine the display labels based on edge direction
     const originalRel = rel.type.toLowerCase();
-    let directRel = isTopToBottom ? originalRel : getReciprocalRelationship(originalRel, targetMember.gender, sourceMember.gender);
-    const reciprocalRel = isTopToBottom ? getReciprocalRelationship(originalRel, targetMember.gender, sourceMember.gender) : originalRel;
+    let directRel: string;
+    let reciprocalRel: string;
 
-    // Override directRel to match target gender for parent-child relationships
-    if (isTopToBottom && ['father', 'mother'].includes(originalRel)) {
-      directRel = targetMember.gender === 'male' ? 'son' : 'daughter';
-    } else if (!isTopToBottom && ['son', 'daughter'].includes(originalRel)) {
-      directRel = sourceMember.gender === 'male' ? 'father' : 'mother';
+    if (isTopToBottom) {
+      // From source → target (normal case)
+      directRel = originalRel;
+      reciprocalRel = getReciprocalRelationship(originalRel, targetMember.gender, sourceMember.gender);
+      if (['father', 'mother'].includes(originalRel)) {
+        // Source is parent, target is child
+        directRel = targetMember.gender === 'male' ? 'son' : 'daughter';
+      }
+    } else {
+      // From target → source (reversed edge)
+      directRel = getReciprocalRelationship(originalRel, targetMember.gender, sourceMember.gender);
+      reciprocalRel = originalRel;
+      if (['father', 'mother'].includes(originalRel)) {
+        // Target is parent, source is child
+        directRel = sourceMember.gender === 'male' ? 'son' : 'daughter';
+      } else if (['son', 'daughter'].includes(originalRel)) {
+        // Target is child, source is parent
+        directRel = targetMember.gender === 'male' ? 'son' : 'daughter';
+      }
     }
 
     return {
@@ -274,7 +296,7 @@ const calculateNodePositions = (
         targetName: targetMember.name
       }
     };
-  });
+  }).filter(edge => edge !== null) as Edge[];
   
   return { nodes, edges };
 };
@@ -301,8 +323,11 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
     if (!relationships.length || !familyMembers.length) {
       return { nodes: [], edges: [] };
     }
-    return calculateNodePositions(familyMembers, relationships, user.userId);
-  }, [familyMembers, relationships, user.userId]);
+    // Determine rootUserId based on creator logic.
+    const rootUserId = user.createdBy === 'self' ? user.userId : user.createdBy;
+    // Pass loggedInUserId as user.userId for crown highlighting.
+    return calculateNodePositions(familyMembers, relationships, rootUserId, user.userId);
+  }, [familyMembers, relationships, user.createdBy, user.userId]);
   
   const [nodes, setNodes, onNodesChange] = useNodesState(calculatedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(calculatedEdges);
@@ -320,7 +345,7 @@ const FamilyTreeVisualization: React.FC<FamilyTreeVisualizationProps> = ({
       try {
         let relationshipData: Relationship[] = [];
         if (viewMode === 'personal') {
-          relationshipData = await getUserPersonalizedFamilyTree(user.userId, user.familyTreeId);
+          relationshipData = await getUserPersonalizedFamilyTree(user.createdBy, user.familyTreeId);
         } else {
           relationshipData = await getFamilyRelationships(user.familyTreeId);
         }

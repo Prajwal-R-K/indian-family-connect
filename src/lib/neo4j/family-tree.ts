@@ -37,10 +37,8 @@ export const getFamilyMembers = async (familyTreeId: string) => {
 
     const cypher = `
       MATCH (u:User {familyTreeId: $familyTreeId})
-      OPTIONAL MATCH (creator:User)-[r:RELATES_TO]->(u)
-      WITH u, creator, collect(r.relationship)[0] AS relationship
       RETURN DISTINCT u.userId AS userId, u.name AS name, u.email AS email, u.status AS status,
-      u.myRelationship AS myRelationship, relationship AS relationship, creator.userId AS createdBy,
+      u.myRelationship AS myRelationship, u.createdBy AS createdBy,
       u.profilePicture AS profilePicture, u.gender AS gender
     `;
 
@@ -53,7 +51,6 @@ export const getFamilyMembers = async (familyTreeId: string) => {
       email: record.email,
       status: record.status,
       myRelationship: record.myRelationship,
-      relationship: record.relationship ? record.relationship.toLowerCase() : null,
       createdBy: record.createdBy,
       profilePicture: record.profilePicture,
       gender: record.gender || ''
@@ -71,7 +68,7 @@ export const getFamilyRelationships = async (familyTreeId: string) => {
     const cypher = `
       MATCH (u1:User {familyTreeId: $familyTreeId})-[r:RELATES_TO]->(u2:User {familyTreeId: $familyTreeId})
       RETURN u1.userId AS source, u2.userId AS target, r.relationship AS type,
-             u1.name AS sourceName, u2.name AS targetName
+      u1.name AS sourceName, u2.name AS targetName
     `;
 
     const result = await runQuery(cypher, { familyTreeId });
@@ -92,26 +89,28 @@ export const getFamilyRelationships = async (familyTreeId: string) => {
 
 export const createReciprocalRelationship = async (
   familyTreeId: string,
-  parentId: string,
-  childId: string,
-  parentGender: string,
-  childGender: string
+  sourceId: string,
+  targetId: string,
+  sourceGender: string,
+  targetGender: string
 ) => {
   try {
-    const { parentToChild } = getRelationshipTypes(parentGender, childGender);
+    const { direct, reciprocal } = getRelationshipTypes(sourceGender, targetGender);
 
     const cypher = `
-      MATCH (parent:User {familyTreeId: $familyTreeId, userId: $parentId})
-      MATCH (child:User {familyTreeId: $familyTreeId, userId: $childId})
-      CREATE (parent)-[:RELATES_TO {relationship: $parentToChild}]->(child)
-      RETURN parent.userId as parentId, child.userId as childId
+      MATCH (source:User {familyTreeId: $familyTreeId, userId: $sourceId})
+      MATCH (target:User {familyTreeId: $familyTreeId, userId: $targetId})
+      CREATE (source)-[:RELATES_TO {relationship: $direct}]->(target)
+      CREATE (target)-[:RELATES_TO {relationship: $reciprocal}]->(source)
+      RETURN source.userId as sourceId, target.userId as targetId
     `;
 
     const result = await runQuery(cypher, {
       familyTreeId,
-      parentId,
-      childId,
-      parentToChild,
+      sourceId,
+      targetId,
+      direct,
+      reciprocal,
     });
 
     return !!result;
@@ -123,14 +122,16 @@ export const createReciprocalRelationship = async (
 
 // Helper to determine relationship direction and types
 const getRelationshipTypes = (
-  elderGender: string,
-  youngerGender: string
-): { parentToChild: string; childToParent: string } => {
-  let parentToChild = "SON";
-  let childToParent = "FATHER";
-  if (youngerGender === "female") parentToChild = "DAUGHTER";
-  if (elderGender === "female") childToParent = "MOTHER";
-  return { parentToChild, childToParent };
+  sourceGender: string,
+  targetGender: string
+): { direct: string; reciprocal: string } => {
+  let direct = "PARENT";
+  let reciprocal = "CHILD";
+  if (sourceGender === "male") direct = "FATHER";
+  if (sourceGender === "female") direct = "MOTHER";
+  if (targetGender === "male") reciprocal = "SON";
+  if (targetGender === "female") reciprocal = "DAUGHTER";
+  return { direct, reciprocal };
 };
 
 // Updated function to fetch complete family tree data
@@ -141,82 +142,33 @@ export const getTraversableFamilyTreeData = async (
   try {
     console.log(`Fetching complete family tree data for tree: ${familyTreeId} with level: ${level}`);
 
+    // Cypher to get all users and their unidirectional relationships
     const cypher = `
+      MATCH (u1:User {familyTreeId: $familyTreeId})-[r:RELATES_TO]->(u2:User {familyTreeId: $familyTreeId})
+      WITH COLLECT(DISTINCT {source: u1.userId, target: u2.userId, type: r.relationship}) AS relationships
       MATCH (u:User {familyTreeId: $familyTreeId})
-      // Traverse up for ancestors
-      OPTIONAL MATCH pAncestor = (u)<-[:RELATES_TO*1..${level}]-(ancestor:User {familyTreeId: $familyTreeId})
-      WHERE ALL(r IN relationships(pAncestor) WHERE r.relationship IN ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER'])
-
-      // Traverse down for descendants
-      OPTIONAL MATCH pDescendant = (u)-[:RELATES_TO*1..${level}]-(descendant:User {familyTreeId: $familyTreeId})
-      WHERE ALL(r IN relationships(pDescendant) WHERE r.relationship IN ['SON', 'DAUGHTER', 'GRANDSON', 'GRANDDAUGHTER'])
-
-      // Traverse sideways for spouse
-      OPTIONAL MATCH (u)-[r:RELATES_TO]-(spouse:User {familyTreeId: $familyTreeId})
-      WHERE r.relationship IN ['WIFE', 'HUSBAND', 'SPOUSE']
-
-      // Traverse sideways for siblings
-      OPTIONAL MATCH (u)<-[relToParent:RELATES_TO]-(parent:User {familyTreeId: $familyTreeId})
-      OPTIONAL MATCH (parent)-[relToSibling:RELATES_TO]->(sibling:User {familyTreeId: $familyTreeId})
-      WHERE sibling <> u
-      AND TYPE(relToParent) IN ['FATHER', 'MOTHER']
-      AND TYPE(relToSibling) IN ['SON', 'DAUGHTER']
-
-      // Collect all relevant users with their properties
-      WITH {userId: u.userId, name: u.name, status: u.status, profilePicture: u.profilePicture, gender: u.gender, createdBy: u.createdBy} AS startNodeData,
-           COLLECT(DISTINCT CASE ancestor WHEN null THEN null ELSE {userId: ancestor.userId, name: ancestor.name, status: ancestor.status, profilePicture: ancestor.profilePicture, gender: ancestor.gender, createdBy: ancestor.createdBy} END) AS ancestors,
-           COLLECT(DISTINCT CASE descendant WHEN null THEN null ELSE {userId: descendant.userId, name: descendant.name, status: descendant.status, profilePicture: descendant.profilePicture, gender: descendant.gender, createdBy: descendant.createdBy} END) AS descendants,
-           COLLECT(DISTINCT CASE spouse WHEN null THEN null ELSE {userId: spouse.userId, name: spouse.name, status: spouse.status, profilePicture: spouse.profilePicture, gender: spouse.gender, createdBy: spouse.createdBy} END) AS spouses,
-           COLLECT(DISTINCT CASE sibling WHEN null THEN null ELSE {userId: sibling.userId, name: sibling.name, status: sibling.status, profilePicture: sibling.profilePicture, gender: sibling.gender, createdBy: sibling.createdBy} END) AS siblings
-
-      WITH startNodeData + [x IN ancestors WHERE x IS NOT NULL] + [x IN descendants WHERE x IS NOT NULL] + [x IN spouses WHERE x IS NOT NULL] + [x IN siblings WHERE x IS NOT NULL] AS allNodes
-
-      // Collect relationships and preserve nodes
-      UNWIND allNodes AS u1
-      UNWIND allNodes AS u2
-      WITH u1, u2, allNodes
-      OPTIONAL MATCH (u1Node:User {userId: u1.userId, familyTreeId: $familyTreeId})-[r:RELATES_TO]-(u2Node:User {userId: u2.userId, familyTreeId: $familyTreeId})
-      WHERE u1Node <> u2Node
-      WITH COLLECT(DISTINCT CASE r WHEN null THEN null ELSE {source: u1.userId, target: u2.userId, type: type(r)} END) AS relationships,
-           allNodes AS nodes
-      UNWIND relationships AS rel
-      WITH rel, nodes
-      WHERE rel IS NOT NULL
-      RETURN rel.source AS source, rel.target AS target, rel.type AS type
-      UNION
-      UNWIND nodes AS node
-      RETURN node.userId AS id, node.name AS name, node.status AS status, node.profilePicture AS profilePicture, node.gender AS gender, node.createdBy AS createdBy, NULL AS type
+      RETURN COLLECT(DISTINCT {userId: u.userId, name: u.name, status: u.status, profilePicture: u.profilePicture, gender: u.gender, createdBy: u.createdBy}) AS nodes, relationships
     `;
 
     const result = await runQuery(cypher, { familyTreeId });
 
-    const nodes = result
-      .filter(record => record.id)
-      .map(record => ({
-        id: record.id,
-        name: record.name,
-        status: record.status,
-        profilePicture: record.profilePicture,
-        gender: record.gender || '',
-        createdBy: record.createdBy,
-        myRelationship: record.myRelationship
-      }));
+    if (!result || result.length === 0) {
+      return { nodes: [], links: [] };
+    }
 
-    const links: any[] = result
-      .filter(record => record.source && record.target)
-      .map(record => ({
-        source: record.source,
-        target: record.target,
-        type: record.type ? record.type.toLowerCase() : 'family'
-      }));
+    const { nodes, relationships } = result[0];
 
-    const uniqueLinks = Array.from(new Map(
-      links.map(link => [`${link.source}-${link.target}-${link.type}`, link])
+    const uniqueNodes = Array.from(new Map(
+      nodes.map(node => [node.userId, node])
     ).values());
 
-    console.log(`Fetched ${nodes.length} nodes and ${uniqueLinks.length} relationships`);
+    const uniqueLinks = Array.from(new Map(
+      relationships.map(link => [`${link.source}-${link.target}`, link])
+    ).values());
 
-    return { nodes, links: uniqueLinks };
+    console.log(`Fetched ${uniqueNodes.length} nodes and ${uniqueLinks.length} relationships`);
+
+    return { nodes: uniqueNodes, links: uniqueLinks };
   } catch (error) {
     console.error("Error getting traversable family tree data:", error);
     return { nodes: [], links: [] };
@@ -229,11 +181,12 @@ export const getUserPersonalFamilyView = async (userId: string, familyTreeId: st
 
     const cypher = `
       MATCH (viewer:User {userId: $userId, familyTreeId: $familyTreeId})
-      MATCH (member:User {familyTreeId: $familyTreeId})
-      OPTIONAL MATCH (viewer)-[rel:RELATES_TO]->(member)
-      RETURN member.userId AS userId, member.name AS name, member.email AS email,
-             member.status AS status, member.profilePicture AS profilePicture,
-             rel.relationship AS relationship
+      OPTIONAL MATCH (viewer)-[rel:RELATES_TO]->(member:User {familyTreeId: $familyTreeId})
+      WITH viewer, collect({userId: member.userId, name: member.name, email: member.email, status: member.status, profilePicture: member.profilePicture, relationship: rel.relationship}) AS directRelationships
+      UNWIND directRelationships AS relData
+      RETURN relData.userId AS userId, relData.name AS name, relData.email AS email,
+             relData.status AS status, relData.profilePicture AS profilePicture,
+             relData.relationship AS relationship
     `;
 
     const result = await runQuery(cypher, { userId, familyTreeId });

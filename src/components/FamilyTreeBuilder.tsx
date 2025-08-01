@@ -54,7 +54,6 @@ const createRelationshipInNeo4j = async (
    }
 };
 
-
 interface FamilyMemberNode extends Node {
   data: {
     label: string;
@@ -347,7 +346,6 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
   // };
 
 
-
   const handleComplete = async () => {
     if (nodes.length <= 1) {
       toast({
@@ -460,7 +458,6 @@ const FamilyTreeBuilder: React.FC<FamilyTreeBuilderProps> = ({ onComplete, onBac
       setIsLoading(false);
     }
   };
-
 
   return (
     <div className="h-screen w-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col overflow-hidden">

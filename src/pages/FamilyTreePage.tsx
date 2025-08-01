@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { User } from '@/types';
-import { getFamilyMembers, getFamilyTreeVisualizationData, getUserPersonalFamilyView, getConnectedFamilyTrees } from '@/lib/neo4j';
+import { getFamilyMembers, getTraversableFamilyTreeData, getUserPersonalFamilyView, getConnectedFamilyTrees } from '@/lib/neo4j';
 
 const FamilyTreePage = () => {
   const location = useLocation();
@@ -63,7 +63,7 @@ const FamilyTreePage = () => {
         visualizationData = { nodes: [], links: [] }; // No visualization for hyper view
       } else {
         members = await getFamilyMembers(currentUser.familyTreeId);
-        visualizationData = await getFamilyTreeVisualizationData(currentUser.familyTreeId);
+        visualizationData = await getTraversableFamilyTreeData(currentUser.familyTreeId);
       }
 
       setFamilyMembers(members);
